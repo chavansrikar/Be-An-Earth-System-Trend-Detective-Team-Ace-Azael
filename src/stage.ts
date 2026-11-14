@@ -116,6 +116,24 @@ export class Stage {
     if (m) this.pivot.add(m.root);
   }
 
+  private running = true;
+
+  /** Stop drawing the hologram while another full-screen renderer (the NASA globe) is shown. */
+  pause() {
+    if (!this.running) return;
+    this.running = false;
+    this.renderer.setAnimationLoop(null);
+  }
+
+  /** Resume after pause(), discarding the idle time so nothing jumps. */
+  resume() {
+    if (this.running) return;
+    this.running = true;
+    this.clock.getDelta();
+    this.resize();
+    this.renderer.setAnimationLoop(() => this.tick());
+  }
+
   /** Switch between the hologram stage (units of about a metre-ish model) and real-world metres. */
   setEarth(on: boolean) {
     this.earthOn = on;

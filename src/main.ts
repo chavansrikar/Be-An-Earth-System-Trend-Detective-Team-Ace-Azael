@@ -19,6 +19,8 @@ import { LENSES, type Lens } from './lens';
 import { toHologram, applyFixes, type BuiltPart } from './construct';
 import { loadSplat, disposeSplat } from './splat';
 import { SignalLayers, ago, type Signal, type LayerId } from './signals';
+import { initTrends, setTrendMode, trendContext, setPlaceGlobeMode, setPlaceGlobePick, showPlaceGlobe, resetPlaceGlobe, openTrendAt } from './trends-ui';
+import { fmt, decimalsFor, type TrendResult } from './trends';
 
 applyCss(theme);
 
@@ -196,7 +198,7 @@ export { gestures };
 
 // ---------- ask (text + voice) ----------
 const agentCtx = {
-  machine: () => (mode === 'build' && built) ? `${built.name} (a 3D model ATLAS built from research; parts are the model's sections)` : (earthActive && currentLandmark) ? `${currentLandmark.name}, ${currentLandmark.city} (a real place, shown in 3D)` : earthActive ? `the whole Earth seen from orbit, centred near ${originLL ? `${originLL.lat.toFixed(1)}, ${originLL.lon.toFixed(1)}` : 'India'}` : state.entry ? `${state.entry.title} (${state.entry.kind})` : 'machine',
+  machine: () => (mode === 'trends') ? `NASA Earth trend detective. ${trendContext()}` : (mode === 'build' && built) ? `${built.name} (a 3D model ATLAS built from research; parts are the model's sections)` : (earthActive && currentLandmark) ? `${currentLandmark.name}, ${currentLandmark.city} (a real place, shown in 3D)` : earthActive ? `the whole Earth seen from orbit, centred near ${originLL ? `${originLL.lat.toFixed(1)}, ${originLL.lon.toFixed(1)}` : 'India'}` : state.entry ? `${state.entry.title} (${state.entry.kind})` : 'machine',
   layers: () => (earthActive ? signals.active : []),
   globeView: () => goGlobe(),
   showLayer: (id: string, on: boolean) => { if (id === 'quakes' || id === 'events') setLayer(id, on); },
@@ -265,8 +267,8 @@ mic.addEventListener('click', () => {
 
 
 // ---------- modes ----------
-type Mode = 'library' | 'scan' | 'places' | 'build';
-let mode: Mode = 'library';
+type Mode = 'trends' | 'library' | 'scan' | 'places' | 'build';
+let mode: Mode = 'trends';
 export const currentMode = () => mode;
 const scanPanel = document.getElementById('scan-panel') as HTMLElement;
 const intro = document.getElementById('intro') as HTMLElement;
@@ -291,6 +293,12 @@ function setMode(m: Mode) {
   if (m !== 'places') { leaveReconstruction(); exitEarth(); }
   placePanel.hidden = m !== 'places';
   sunBox.hidden = m !== 'places' || !place || earthActive;
+  // Trend mode owns the screen: pause the hologram renderer so a laptop or phone is not
+  // running two WebGL loops, and let the NASA globe take over.
+  if (m !== 'places') disablePlaceGlobe();
+  setTrendMode(m === 'trends');
+  if (m === 'trends' || placeGlobeActive) stage.pause();
+  else stage.resume();
   if (m === 'places') enterPlaces();
 }
 
@@ -406,7 +414,7 @@ let sunLine: THREE.Line | null = null;
   if (q) searchPlace(q);
 });
 
-async function loadPlace(q: string) {
+export async function loadPlace(q: string) {
   placeStatus.textContent = `finding ${q} on OpenStreetMap`;
   ui.log(`place: ${q}`, 'you');
   const slow = setTimeout(() => { placeStatus.textContent = 'pulling building footprints, this can take 20 to 30 seconds the first time'; }, 4000);
@@ -464,6 +472,7 @@ sunInput.addEventListener('input', updateSun);
 // ---------- earth: real places in photoreal 3D ----------
 let earthAuth: EarthAuth | null | undefined;
 let earthActive = false;
+let placeGlobeActive = false;
 let currentLandmark: Landmark | null = null;
 let earthStarted = false;
 const landmarkList = document.getElementById('landmarks')!;
@@ -577,13 +586,159 @@ async function enterPlaces() {
   const auth = await getEarthAuth();
   if (mode !== 'places') return;
   if (!auth) {
-    placeStatus.textContent = 'Photoreal 3D needs the map token on the server. Showing OpenStreetMap builds until then.';
-    if (!place) intro.hidden = true;
+    enablePlaceGlobe();
     return;
   }
+  if (placeGlobeActive) disablePlaceGlobe();
   if (!earthStarted) { if (currentLandmark) selectLandmark(currentLandmark); else goGlobe(); }
   else earthOn();
 }
+
+/**
+ * The NASA satellite globe is the honest fallback when no Google/Cesium token is configured.
+ * It is not a photoreal city mesh; it is the original MODIS true-colour Earth plus the 30-year
+ * NASA POWER record for the selected place.
+ */
+function enablePlaceGlobe(showCurrent = true) {
+  if (placeGlobeActive) {
+    if (showCurrent && currentLandmark) showNasaPlace(currentLandmark);
+    return;
+  }
+  placeGlobeActive = true;
+  document.body.classList.add('earth-fallback');
+  stage.pause();
+  setPlaceGlobeMode(true);
+  setPlaceGlobePick((lat, lon) => {
+    const name = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`;
+    showNasaPlace({ id: `pick-${lat.toFixed(3)}-${lon.toFixed(3)}`, name, city: 'Picked on the globe', lat, lon, view: 450, lift: 20 });
+  });
+  if (showCurrent && currentLandmark) showNasaPlace(currentLandmark);
+  else {
+    resetPlaceGlobe();
+    $('place-science').hidden = true;
+    placeStatus.textContent = 'NASA satellite globe · search any place or tap the Earth.';
+    if (!place) intro.hidden = true;
+  }
+}
+
+function disablePlaceGlobe() {
+  if (!placeGlobeActive) return;
+  placeGlobeActive = false;
+  setPlaceGlobeMode(false);
+  setPlaceGlobePick(null);
+  document.body.classList.remove('earth-fallback');
+}
+
+function showNasaPlace(l: Landmark) {
+  if (!placeGlobeActive) enablePlaceGlobe(false);
+  currentLandmark = l;
+  landmarkList.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', (b as HTMLElement).dataset.id === l.id));
+  earthStarted = false;
+  originLL = null;
+  ui.closeCard();
+  intro.hidden = false;
+  setTitle(l.name);
+  $('model-kind').textContent = `NASA Earth view · ${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}`;
+  $('parts-n').textContent = '30 yr';
+  $('credit').textContent = 'NASA GIBS MODIS Terra true colour · NASA POWER 1996–2025 · USGS / ECCC gauge';
+  placeStatus.textContent = 'Flying the NASA globe to this place…';
+  placeTag.hidden = true;
+  sunBox.hidden = true;
+  showPlaceGlobe(l.lat, l.lon, l.name);
+  window.setTimeout(() => {
+    if (mode !== 'places' || currentLandmark !== l || !placeGlobeActive) return;
+    placeStatus.textContent = `NASA satellite view · ${Math.abs(l.lat).toFixed(4)}°${l.lat >= 0 ? 'N' : 'S'}, ${Math.abs(l.lon).toFixed(4)}°${l.lon >= 0 ? 'E' : 'W'} · science card open`;
+  }, 2600);
+  shareState(l);
+  void loadPlaceScience(l);
+}
+
+async function fetchScience(variable: 't2m' | 'precip' | 'streamflow', l: Landmark): Promise<TrendResult> {
+  const q = new URLSearchParams({
+    variable, lat: l.lat.toFixed(4), lon: l.lon.toFixed(4), start: '1996', end: '2025', mode: 'point', name: l.name,
+  });
+  const res = await fetch(`/api/trends?${q.toString().replace(/\+/g, '%20')}`);
+  const body = (await res.json().catch(() => null)) as (TrendResult & { error?: string }) | null;
+  if (body?.error) throw new Error(body.error);
+  if (!res.ok) throw new Error(`NASA request failed (HTTP ${res.status})`);
+  if (!body || !body.variable || !body.place || !Array.isArray(body.series?.annual)) {
+    throw new Error('The NASA API returned an unexpected response. Open the app through `vercel dev` or the deployed site, not `vite preview` alone.');
+  }
+  return body;
+}
+
+async function loadPlaceScience(l: Landmark) {
+  const panel = $('place-science');
+  panel.hidden = false;
+  $('ps-place').textContent = l.name;
+  $('ps-coords').textContent = `${Math.abs(l.lat).toFixed(4)}°${l.lat >= 0 ? 'N' : 'S'}, ${Math.abs(l.lon).toFixed(4)}°${l.lon >= 0 ? 'E' : 'W'}${l.city ? ` · ${l.city}` : ''} · 1996–2025`;
+  const body = $('ps-body');
+  body.replaceChildren();
+  const loading = document.createElement('p');
+  loading.className = 'ps-loading';
+  loading.textContent = 'Reading 30 years of NASA POWER data and the nearest stream gauge…';
+  body.appendChild(loading);
+  $('ps-source').textContent = 'NASA POWER / MERRA-2 · NASA GIBS MODIS Terra · USGS Water Services / ECCC MSC GeoMet';
+  $<HTMLAnchorElement>('ps-power').href = 'https://power.larc.nasa.gov/data-access-viewer/';
+
+  const [temp, precip, water] = await Promise.allSettled([
+    fetchScience('t2m', l), fetchScience('precip', l), fetchScience('streamflow', l),
+  ]);
+  if (currentLandmark !== l || mode !== 'places') return;
+  body.replaceChildren();
+
+  const addRow = (name: string, r: TrendResult | null, err: string | null) => {
+    const row = document.createElement('div');
+    row.className = 'ps-row';
+    const left = document.createElement('div');
+    const n = document.createElement('div');
+    n.className = 'ps-name';
+    n.textContent = name;
+    left.appendChild(n);
+    const rate = document.createElement('div');
+    rate.className = 'ps-rate';
+    const meta = document.createElement('div');
+    meta.className = 'ps-meta';
+    if (r?.stats) {
+      const s = r.stats;
+      const d = decimalsFor(r.variable.id);
+      rate.textContent = `${s.senPerDecade > 0 ? '+' : ''}${fmt(s.senPerDecade, d)} ${r.variable.annualUnit}/dec`;
+      meta.textContent = `Mean ${fmt(s.mean, d)} ${r.variable.annualUnit} · p = ${s.mk.p < 0.001 ? '<0.001' : fmt(s.mk.p, 3)} · ${s.n} years`;
+      const badge = document.createElement('span');
+      badge.className = `ps-badge ${s.mk.significant ? 'sig' : 'none'}`;
+      badge.textContent = s.mk.significant ? 'Significant' : 'Not significant';
+      meta.appendChild(badge);
+      if (r.place.gauge) {
+        const g = document.createElement('div');
+        g.textContent = `${r.place.gauge.source} ${r.place.gauge.id} · ${r.place.gauge.name} · ${r.place.gauge.distanceKm} km away`;
+        meta.appendChild(g);
+      }
+    } else {
+      rate.textContent = 'no test';
+      meta.textContent = r ? `${r.series.annual.length} complete years; too few for a trend test.` : err || 'Data unavailable.';
+    }
+    row.append(left, rate, meta);
+    body.appendChild(row);
+  };
+
+  const pick = (x: PromiseSettledResult<TrendResult>) => (x.status === 'fulfilled' ? x.value : null);
+  const why = (x: PromiseSettledResult<TrendResult>) => (x.status === 'rejected' ? (x.reason instanceof Error ? x.reason.message : String(x.reason)) : null);
+  addRow('Air temperature', pick(temp), why(temp));
+  addRow('Precipitation', pick(precip), why(precip));
+  addRow('Streamflow · gauge', pick(water), why(water));
+
+  const stamp = new Date().toLocaleDateString();
+  $('ps-source').textContent = `NASA POWER / MERRA-2 and NASA GIBS, accessed ${stamp}. Streamflow: nearest active USGS (US) or ECCC (Canada) gauge. ` +
+    'Trends are Sen’s slope with a Mann–Kendall test; p < 0.05 is called significant.';
+}
+
+$('place-science-close').addEventListener('click', () => { $('place-science').hidden = true; });
+$('ps-open').addEventListener('click', () => {
+  const l = currentLandmark;
+  if (!l) return;
+  setMode('trends');
+  openTrendAt({ name: l.name, lat: l.lat, lon: l.lon, mode: 'point' }, 't2m');
+});
 
 function earthOn() {
   if (earthActive) return;
@@ -610,7 +765,7 @@ function exitEarth() {
   ($('labels') as HTMLElement).hidden = false;
   placeTag.hidden = true;
   if (state.entry) { setTitle(state.entry.title); $('model-kind').textContent = state.entry.kind; $('credit').textContent = `Model: ${state.entry.credit} · ${state.entry.licence}`; }
-  else if (!scanned && mode !== 'build' && !recon) loadEntry(LIBRARY[0]);
+  else if (!scanned && mode !== 'build' && mode !== 'trends' && !recon) loadEntry(LIBRARY[0]);
 }
 
 // ---------- photo reconstructions (Gaussian splats) ----------
@@ -682,9 +837,10 @@ window.addEventListener('keydown', (e) => {
 async function selectLandmark(l: Landmark, opts: { facts?: boolean } = {}) {
   if (recon) { leaveReconstruction(); earthStarted = false; originLL = null; }
   if (globe) leaveGlobe();
-  landmarkList.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', (b as HTMLElement).dataset.id === l.id));
   const auth = await getEarthAuth();
-  if (!auth) { loadPlace(`${l.name}, ${l.city}`); return; }
+  if (!auth) { showNasaPlace(l); return; }
+  if (placeGlobeActive) disablePlaceGlobe();
+  landmarkList.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', (b as HTMLElement).dataset.id === l.id));
   currentLandmark = l;
   updateReconBtn();
   earthOn();
@@ -787,15 +943,15 @@ async function loadFacts(l: Landmark) {
 }
 
 async function searchPlace(q: string) {
-  const auth = await getEarthAuth();
-  if (!auth) { loadPlace(q); return; }
   placeStatus.textContent = `finding ${q}`;
   try {
     const r = await fetch('/api/geocode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
     const g = await r.json();
     if (!r.ok || g.error) throw new Error(g.error || 'not found');
     const parts = String(g.name).split(',');
-    selectLandmark({ id: `q-${Date.now()}`, name: parts[0].trim(), city: parts.slice(1).join(',').trim() || q, lat: g.lat, lon: g.lon, view: 450, lift: 20 });
+    const target: Landmark = { id: `q-${Date.now()}`, name: parts[0].trim(), city: parts.slice(1).join(',').trim() || q, lat: g.lat, lon: g.lon, view: 450, lift: 20 };
+    if (placeGlobeActive) showNasaPlace(target);
+    else selectLandmark(target);
   } catch (err) {
     placeStatus.textContent = err instanceof Error ? err.message : String(err);
   }
@@ -1147,7 +1303,17 @@ canvas.addEventListener('wheel', (ev) => {
   globe.dist = THREE.MathUtils.clamp(globe.dist * Math.exp(ev.deltaY * 0.0012), 3.2e6, 3.4e7);
   ev.preventDefault();
 }, { passive: false });
-$('globe-btn').addEventListener('click', () => goGlobe());
+$('globe-btn').addEventListener('click', () => {
+  if (placeGlobeActive) {
+    resetPlaceGlobe();
+    currentLandmark = null;
+    $('place-science').hidden = true;
+    intro.hidden = true;
+    placeStatus.textContent = 'NASA satellite globe · search any place or tap the Earth.';
+    return;
+  }
+  goGlobe();
+});
 window.addEventListener('keydown', (e) => {
   if (mode !== 'places' || e.metaKey || e.ctrlKey || (e.target as HTMLElement | null)?.closest?.('input, textarea')) return;
   if (e.key === 'g' || e.key === 'G') goGlobe();
@@ -1191,6 +1357,9 @@ if (new URLSearchParams(location.search).has('debug')) (window as unknown as Rec
   }
 }
 
+// The NASA trend screen is the front door. The hologram modes stay one tap away.
+initTrends();
+
 // Open straight into a shared view: ?place=taj&lens=thermal or ?at=lat,lon,Name
 {
   const q = new URLSearchParams(location.search);
@@ -1204,5 +1373,5 @@ if (new URLSearchParams(location.search).has('debug')) (window as unknown as Rec
   }
   if (target) { currentLandmark = target; setMode('places'); }
   else if (q.get('mode') === 'library') setMode('library');
-  else setMode('places');
+  else setMode('trends');
 }

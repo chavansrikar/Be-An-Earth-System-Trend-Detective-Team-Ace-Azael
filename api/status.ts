@@ -1,4 +1,4 @@
-import { PROVIDER, MODELS, ALTS, LIVE_IDS, ensureModels } from './_nebius.js';
+import { PROVIDER, MODELS, ALTS, LIVE_IDS, ensureModels, KEYLESS } from './_nebius.js';
 
 /** Tells the UI which model provider is live, so the header never claims a model that isn't running. */
 export default async function handler(_req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }) {
@@ -9,6 +9,10 @@ export default async function handler(_req: unknown, res: { status: (n: number) 
     agent: PROVIDER ? MODELS.agent : null,
     vision: PROVIDER ? MODELS.vision : null,
     fast: PROVIDER ? MODELS.fast : null,
+    // The trend explainer has a keyless open-model fallback, so it can be live even when the
+    // full tool-calling agent is offline. The UI asks for this explicitly.
+    explain: PROVIDER ? MODELS.fast : KEYLESS?.model || null,
+    keyless: KEYLESS ? { id: KEYLESS.id, label: KEYLESS.label, model: KEYLESS.model } : null,
     fallbacks: PROVIDER ? ALTS.agent.slice(0, 6) : [],
     listed: LIVE_IDS,
     search: !!process.env.TAVILY_API_KEY,

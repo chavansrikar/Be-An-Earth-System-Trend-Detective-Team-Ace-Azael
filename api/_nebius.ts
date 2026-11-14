@@ -28,10 +28,27 @@ const PROVIDERS: Provider[] = [
 
 export const PROVIDER: Provider | undefined = PROVIDERS.find((p) => p.key);
 
+/**
+ * A keyless, server-side fallback for the small explanation model.
+ *
+ * Pollinations exposes an OpenAI-compatible, anonymous endpoint that serves open-weight models
+ * (currently gpt-oss-20b). It is used only when no NVIDIA/Nebius/Gemini/Groq key is configured,
+ * and only for the trend explainer: a low-stakes, two-sentence rewrite of numbers that ATLAS has
+ * already computed. The deterministic explanation remains the fallback if this server is down.
+ * Set ATLAS_KEYLESS_MODEL=off to disable it, or any model id to pin another one.
+ */
+const KEYLESS_OFF = /^(off|none|0|false)$/i.test(process.env.ATLAS_KEYLESS_MODEL || '');
+export const KEYLESS = KEYLESS_OFF ? null : {
+  id: 'pollinations',
+  label: 'Pollinations · open model (keyless)',
+  base: 'https://text.pollinations.ai/openai',
+  model: process.env.ATLAS_KEYLESS_MODEL || 'openai',
+};
+
 export const MODELS = {
   vision: process.env.ATLAS_VISION_MODEL || PROVIDER?.vision || 'unset',
   agent: process.env.ATLAS_AGENT_MODEL || PROVIDER?.agent || 'unset',
-  fast: process.env.ATLAS_FAST_MODEL || PROVIDER?.fast || 'unset',
+  fast: process.env.ATLAS_FAST_MODEL || PROVIDER?.fast || KEYLESS?.model || 'unset',
 };
 
 const configured = { ...MODELS };
@@ -82,6 +99,7 @@ export interface ChatMessage {
 }
 
 export function hasModel() { return !!PROVIDER; }
+export function hasKeyless() { return !!KEYLESS; }
 
 const EXHAUSTED = new Map<string, number>();
 
@@ -130,6 +148,43 @@ export async function chat(body: Record<string, unknown>) {
     if (r.status !== 429 && i === 0) await new Promise((res) => setTimeout(res, 600));
   }
   throw new HttpError(503, /\b429\b/.test(last) ? `The model quota is used up for today (${last.slice(0, 120)})` : last);
+}
+
+/**
+ * Keyless text completion for the NASA trend explainer. Same OpenAI-shaped request/response as
+ * chat(), so callers can swap the transport without changing their prompt. No images or tools are
+ * sent here; the anonymous tier is deliberately used only for short, text-only explanations.
+ */
+export async function chatKeyless(body: Record<string, unknown>) {
+  if (!KEYLESS) throw new HttpError(503, 'Keyless explanations are disabled on this deployment');
+  const payload = {
+    ...body,
+    model: KEYLESS.model,
+    // The anonymous tier is rate-limited; a private flag keeps the request out of public feeds.
+    private: true,
+    referrer: 'https://atlas-ace-azael.vercel.app/',
+  };
+  let r: Response;
+  try {
+    r = await fetch(KEYLESS.base, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'ATLAS-EARTH/1.0 (NASA Space Apps 2026, Team Ace Azael)',
+        Referer: 'https://atlas-ace-azael.vercel.app/',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(50_000),
+    });
+  } catch (err) {
+    throw new HttpError(503, `The keyless explanation model did not respond (${err instanceof Error ? err.name : 'error'})`);
+  }
+  if (!r.ok) {
+    throw new HttpError(503, `The keyless explanation model answered ${r.status}: ${(await r.text()).replace(/\s+/g, ' ').slice(0, 200)}`);
+  }
+  const j = await r.json();
+  j.servedBy = `${KEYLESS.label} · ${j.model || 'open model'}`;
+  return j as { choices?: Array<{ message?: { content?: string } }>; servedBy: string; [k: string]: unknown };
 }
 
 export async function tavily(query: string, maxResults = 4) {

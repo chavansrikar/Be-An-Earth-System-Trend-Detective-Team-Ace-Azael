@@ -123,7 +123,16 @@ export async function refreshStatus() {
   try {
     const r = await fetch('/api/status');
     const j = await r.json();
-    if (!j.provider) { label.textContent = 'Model offline'; chip.title = 'No model key on the server yet'; return; }
+    if (!j.provider) {
+      if (j.keyless) {
+        label.textContent = String(j.keyless.model || 'open model');
+        chip.title = `${j.keyless.label}: keyless explanations are on; the full agent needs a model key`;
+        return;
+      }
+      label.textContent = 'Model offline';
+      chip.title = 'No model key on the server yet';
+      return;
+    }
     const short = String(j.agent).split('/').pop() || j.agent;
     label.textContent = short.length > 22 ? `${short.slice(0, 21)}…` : short;
     chip.title = `${j.label}: ${j.agent} (vision ${j.vision})${j.search ? ', Tavily search on' : ''}`;

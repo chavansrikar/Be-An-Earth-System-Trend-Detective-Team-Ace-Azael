@@ -3,21 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>ATLAS Live</title>
-    <meta name="description" content="Take apart machines with your bare hands. Show ATLAS any object or name any place and it builds a hologram you can explode, question and explore." />
+    <title>ATLAS EARTH · NASA Earth System Trend Detective</title>
+    <meta name="description" content="Pick a NASA Earth variable and a place. ATLAS draws the time series, measures the trend and tests whether it is statistically significant — with NASA POWER data and NASA GIBS imagery." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="theme-color" content="#2B44B8" />
   </head>
-  <body>
+  <body class="mode-trends">
     <div id="stage" aria-label="Hologram view"></div>
+    <div id="globe" aria-label="NASA Earth globe"></div>
     <div id="labels" aria-hidden="true"></div>
 
     <header class="bar">
-      <div class="mark"><span class="word">ATLAS</span><span class="sub">Live</span></div>
+      <div class="mark"><span class="word">ATLAS</span><span class="sub">Earth</span></div>
       <nav class="modes" aria-label="Mode">
-        <button type="button" class="mode is-on" data-mode="library" aria-pressed="true">Library</button>
-        <button type="button" class="mode" data-mode="scan" aria-pressed="false">Scan</button>
+        <button type="button" class="mode is-on" data-mode="trends" aria-pressed="true">Trends</button>
         <button type="button" class="mode" data-mode="places" aria-pressed="false">Places</button>
+        <button type="button" class="mode" data-mode="library" aria-pressed="false">Library</button>
+        <button type="button" class="mode" data-mode="scan" aria-pressed="false">Scan</button>
         <button type="button" class="mode" data-mode="build" aria-pressed="false">Build</button>
       </nav>
       <div class="status">
@@ -26,7 +28,108 @@
       </div>
     </header>
 
-    <section class="intro" id="intro">
+    <section class="trend-panel" id="trend-panel" aria-label="NASA Earth trend detective">
+      <p class="eyebrow">NASA Earth data · trend detective</p>
+      <h1>What is changing here?</h1>
+      <p class="trend-lede">Pick a NASA variable and a place. ATLAS draws the record, measures the trend and tests whether the change is statistically significant.</p>
+      <form id="trend-locate" class="ask trend-ask" autocomplete="off">
+        <label class="visually-hidden" for="trend-place">Place</label>
+        <input id="trend-place" placeholder="Search a place, or click the globe" />
+        <button type="submit" class="send">Find</button>
+      </form>
+      <div class="trend-presets" id="trend-presets" role="group" aria-label="Example regions"></div>
+      <div class="trend-field">
+        <span class="trend-field-label">Variable</span>
+        <div class="trend-groups" id="trend-groups" role="group" aria-label="Variable group"></div>
+        <div class="trend-vars" id="trend-vars" role="group" aria-label="Earth variable"></div>
+      </div>
+      <div class="trend-field">
+        <span class="trend-field-label">Period</span>
+        <div class="trend-years">
+          <label>From <select id="trend-start"></select></label>
+          <label>To <select id="trend-end"></select></label>
+        </div>
+      </div>
+      <button type="button" id="trend-run" class="btn-solid trend-run">Run the NASA numbers</button>
+      <p class="trend-status" id="trend-status" aria-live="polite"></p>
+      <div class="trend-field trend-imagery-field">
+        <span class="trend-field-label">NASA imagery on the globe</span>
+        <div class="trend-imagery">
+          <label>Year <input id="trend-year" type="range" min="2000" max="2025" step="1" value="2025" /><b id="trend-year-read">2025</b></label>
+          <label>Month <input id="trend-month" type="range" min="1" max="12" step="1" value="1" /><b id="trend-month-read">Jan</b></label>
+        </div>
+        <div class="trend-basemap" id="trend-basemap" role="group" aria-label="Globe basemap">
+          <button type="button" data-base="map" class="is-on">Blue Marble</button>
+          <button type="button" data-base="satellite">Satellite</button>
+        </div>
+        <p class="trend-imagery-note" id="trend-imagery-note">NASA GIBS · monthly composite</p>
+      </div>
+      <div class="trend-archives">
+        <span class="trend-field-label">Federal data archives</span>
+        <div class="trend-archive-links">
+          <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">NASA POWER</a>
+          <a href="https://gibs.earthdata.nasa.gov/" target="_blank" rel="noopener">NASA GIBS</a>
+          <a href="https://eonet.gsfc.nasa.gov/" target="_blank" rel="noopener">NASA EONET</a>
+          <a href="https://waterservices.usgs.gov/" target="_blank" rel="noopener">USGS Water</a>
+          <a href="https://api.weather.gc.ca/" target="_blank" rel="noopener">ECCC GeoMet</a>
+          <a href="https://open.canada.ca/en/open-maps" target="_blank" rel="noopener">Geo.ca / Canada</a>
+        </div>
+        <p class="trend-credit">Data: NASA POWER / MERRA-2 · Imagery: NASA GIBS · Gauges: USGS / ECCC · U.S. &amp; Canadian Government open data</p>
+      </div>
+    </section>
+
+    <aside class="trend-result" id="trend-result" hidden aria-label="Trend result" aria-live="polite">
+      <div class="trend-result-top">
+        <span id="trend-kicker">NASA POWER · trend analysis</span>
+        <button type="button" id="trend-close" class="x" aria-label="Close result">×</button>
+      </div>
+      <h2 id="trend-result-place">Amazon Basin</h2>
+      <p class="trend-result-coords" id="trend-coords"></p>
+      <div class="trend-headline">
+        <div><b id="trend-rate">—</b><span id="trend-rate-label">per decade</span></div>
+        <span class="trend-badge" id="trend-badge">—</span>
+      </div>
+      <p class="trend-summary" id="trend-summary"></p>
+      <div class="trend-chart-wrap">
+        <canvas id="trend-chart" height="190"></canvas>
+        <div class="trend-chart-tip" id="trend-tip" hidden></div>
+      </div>
+      <div class="trend-chart-legend" id="trend-chart-legend">
+        <button type="button" data-chart="annual" class="is-on">Annual</button>
+        <button type="button" data-chart="monthly">Monthly</button>
+        <span class="trend-key">- - - Sen's trend</span>
+      </div>
+      <dl class="trend-stats" id="trend-stats"></dl>
+      <div class="trend-actions">
+        <button type="button" id="trend-explain" class="iso-btn">Explain the test</button>
+        <button type="button" id="trend-ai" class="iso-btn" hidden>Ask ATLAS</button>
+        <button type="button" id="trend-play" class="iso-btn">Play years</button>
+        <button type="button" id="trend-csv" class="iso-btn">Download CSV</button>
+      </div>
+      <p class="trend-explain-text" id="trend-explain-text" hidden></p>
+      <p class="trend-source" id="trend-source"></p>
+      <p class="trend-source-links">
+        <a id="trend-api" href="https://power.larc.nasa.gov/data-access-viewer/" target="_blank" rel="noopener">Exact NASA POWER API request</a>
+        <a id="trend-dav" href="https://power.larc.nasa.gov/data-access-viewer/" target="_blank" rel="noopener">NASA POWER Data Access Viewer</a>
+        <a id="trend-gauge" href="https://waterservices.usgs.gov/" target="_blank" rel="noopener" hidden>Gauge record</a>
+      </p>
+    </aside>
+
+    <aside class="place-science" id="place-science" hidden aria-label="NASA science for this place" aria-live="polite">
+      <div class="ps-top"><span class="eyebrow">NASA science · this place</span><button type="button" id="place-science-close" class="x" aria-label="Close science panel">×</button></div>
+      <h2 id="ps-place">—</h2>
+      <p class="ps-coords" id="ps-coords"></p>
+      <div class="ps-body" id="ps-body">
+        <p class="ps-loading">Reading 30 years of NASA POWER data…</p>
+      </div>
+      <div class="ps-actions">
+        <button type="button" id="ps-open" class="btn-solid">Open in Trend Detective</button>
+        <a id="ps-power" class="iso-btn" href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">NASA POWER</a>
+      </div>
+      <p class="ps-source" id="ps-source"></p>
+    </aside>
+
+    <section class="intro" id="intro" hidden>
       <p class="eyebrow" id="model-kind">Mars 2020 · NASA/JPL</p>
       <h1 id="model-title">Perseverance rover</h1>
       <p class="parts-count"><span id="parts-n">0</span> parts</p>
