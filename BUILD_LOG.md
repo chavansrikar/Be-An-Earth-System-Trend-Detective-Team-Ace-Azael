@@ -160,6 +160,8 @@ New-variable checks:
 - Deploy command: `NODE_OPTIONS="--dns-result-order=ipv4first" npx vercel deploy --prod --yes`.
 - Commit `9ad45d2` deployed the Globe tab, photoreal search, depth-aware fly-to, LLM routing, NASA fallback, Places science hand-off and the reconciled documentation. `CESIUM_ION_TOKEN` is set for Production, Preview and Development.
 - Live verification on 14 November 2026: `/api/status` reports `earth.kind = ion`; the whole photoreal Earth renders at 1440×900; **Statue of Liberty** geocodes, traverses from orbit and lands at a 420 m view; **Details** opens Places with the NASA science card: air temperature +0.41 °C/decade (p = 0.005), precipitation +113 mm/year/decade (p = 0.035), and USGS gauge 01393450 at 15.1 km (+0.052 m³/s/decade, p = 0.134, not significant). No console or page errors.
+- Commit `767cb4f` deployed the native Gemini transport. Live `/api/status` reports `provider: gemini`, agent and vision `gemini-3.5-flash`, fast `gemini-3.5-flash-lite`, `earth.kind = ion`. Live **Ask ATLAS** returned `fly_to` for the Eiffel Tower (34.8 s); the Globe panel rendered the answer and landed at **720 m** with no console or page errors; **/api/trend-explain** returned a complete explanation (1.5 s); **/api/scan** identified the Statue of Liberty with five parts from a live canvas frame (69.7 s); the Amazon trend is unchanged at +0.323 °C/decade, p = 0.0074.
+- `GEMINI_API_KEY` is set for Production, Preview and Development. It was pasted into chat during setup; rotate it in AI Studio and update Vercel when convenient.
 - Local verification also covered a mocked agent `fly_to` to the Eiffel Tower, the NASA fallback search for Paris, the 390×844 mobile Globe, and Back to orbit from both renderers.
 
 ## Known limitations
