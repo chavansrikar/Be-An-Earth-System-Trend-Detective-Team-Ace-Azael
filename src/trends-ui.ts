@@ -94,7 +94,8 @@ export function setPlaceGlobePick(fn: ((lat: number, lon: number) => void) | nul
 export function showPlaceGlobe(lat: number, lon: number, name: string) {
   if (!globe) return;
   const now = new Date();
-  globe.setBase('satellite', now.getUTCFullYear(), now.getUTCMonth() + 1);
+  // Blue Marble is seamless at close range; the daily MODIS scene can have swath gaps.
+  globe.setBase('map', now.getUTCFullYear(), now.getUTCMonth() + 1);
   globe.setOverlay(null, now.getUTCFullYear(), now.getUTCMonth() + 1);
   // Deliberately closer than the regional trend view: Places should show one coordinate.
   globe.setMarker(lat, lon, name, 2.35);

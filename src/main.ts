@@ -596,7 +596,7 @@ async function enterPlaces() {
 
 /**
  * The NASA satellite globe is the honest fallback when no Google/Cesium token is configured.
- * It is not a photoreal city mesh; it is the original MODIS true-colour Earth plus the 30-year
+ * It is not a photoreal city mesh; it is the original Blue Marble Earth plus the 30-year
  * NASA POWER record for the selected place.
  */
 function enablePlaceGlobe(showCurrent = true) {
@@ -640,14 +640,14 @@ function showNasaPlace(l: Landmark) {
   setTitle(l.name);
   $('model-kind').textContent = `NASA Earth view · ${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}`;
   $('parts-n').textContent = '30 yr';
-  $('credit').textContent = 'NASA GIBS MODIS Terra true colour · NASA POWER 1996–2025 · USGS / ECCC gauge';
+  $('credit').textContent = 'NASA Blue Marble · NASA POWER 1996–2025 · USGS / ECCC gauge';
   placeStatus.textContent = 'Flying the NASA globe to this place…';
   placeTag.hidden = true;
   sunBox.hidden = true;
   showPlaceGlobe(l.lat, l.lon, l.name);
   window.setTimeout(() => {
     if (mode !== 'places' || currentLandmark !== l || !placeGlobeActive) return;
-    placeStatus.textContent = `NASA satellite view · ${Math.abs(l.lat).toFixed(4)}°${l.lat >= 0 ? 'N' : 'S'}, ${Math.abs(l.lon).toFixed(4)}°${l.lon >= 0 ? 'E' : 'W'} · science card open`;
+    placeStatus.textContent = `NASA Blue Marble view · ${Math.abs(l.lat).toFixed(4)}°${l.lat >= 0 ? 'N' : 'S'}, ${Math.abs(l.lon).toFixed(4)}°${l.lon >= 0 ? 'E' : 'W'} · science card open`;
   }, 2600);
   shareState(l);
   void loadPlaceScience(l);
@@ -678,7 +678,7 @@ async function loadPlaceScience(l: Landmark) {
   loading.className = 'ps-loading';
   loading.textContent = 'Reading 30 years of NASA POWER data and the nearest stream gauge…';
   body.appendChild(loading);
-  $('ps-source').textContent = 'NASA POWER / MERRA-2 · NASA GIBS MODIS Terra · USGS Water Services / ECCC MSC GeoMet';
+  $('ps-source').textContent = 'NASA POWER / MERRA-2 · NASA GIBS Blue Marble · USGS Water Services / ECCC MSC GeoMet';
   $<HTMLAnchorElement>('ps-power').href = 'https://power.larc.nasa.gov/data-access-viewer/';
 
   const [temp, precip, water] = await Promise.allSettled([

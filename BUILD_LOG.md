@@ -98,7 +98,10 @@ Implemented fallback:
 - The card fetches three 30-year records in parallel: air temperature, precipitation and nearest streamflow gauge.
 - It shows the slope, mean, p-value, significance badge, gauge metadata and source links, plus “Open in Trend Detective”.
 - The “Whole Earth” button clears the marker and flies back out.
-- The fallback is explicit: it is the NASA satellite view, not photoreal 3D tiles.
+- The fallback is explicit: it is the NASA Blue Marble globe, not photoreal 3D tiles. Blue Marble is used at close range because it is seamless; a daily MODIS scene can show black swath gaps.
+- The left panel and top chrome get a ground-colour scrim over bright imagery so the place search and landmark list stay readable.
+- Places flies to 2.35 Earth radii, marks the exact coordinate and reports it in the status line.
+- On phones the globe docks above the science card and the browse list collapses while the card is open, so the selected place stays visible instead of being covered.
 
 ### 6. NASA POWER DAV surface, 30 variables and export
 

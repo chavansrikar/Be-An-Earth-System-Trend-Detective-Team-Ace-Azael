@@ -93,9 +93,9 @@ The DAV at <https://power.larc.nasa.gov/data-access-viewer/> sends `X-Frame-Opti
 - **Use:** the preserved **Places → Live signals → Events** layer (wildfires, severe storms, sea/lake ice, volcanoes, floods and other open events).
 - **Licence:** U.S. public domain (NASA).
 
-### NASA satellite basemap in Places
+### NASA Blue Marble basemap in Places
 
-When `CESIUM_ION_TOKEN` or `GOOGLE_MAPS_KEY` is not configured, Places does not pretend to have photoreal 3D tiles. It reuses the NASA globe with **MODIS Terra true colour** and the latest available scene, flies to the searched place, and opens a NASA science card. The card is driven by the same NASA POWER and gauge APIs as the Trend Detective.
+When `CESIUM_ION_TOKEN` or `GOOGLE_MAPS_KEY` is not configured, Places does not pretend to have photoreal 3D tiles. It reuses the NASA globe with **Blue Marble shaded relief + bathymetry** — seamless at close range, unlike a daily MODIS scene with swath gaps — flies to the searched place at 2.35 Earth radii, and opens a NASA science card. The card is driven by the same NASA POWER and gauge APIs as the Trend Detective.
 
 ## 2. Hydrology — the deliberate non-NASA exception
 

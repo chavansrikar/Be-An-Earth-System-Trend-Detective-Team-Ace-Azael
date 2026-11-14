@@ -290,15 +290,32 @@ body.mode-places .place-panel { bottom: calc(214px + env(safe-area-inset-bottom,
 .log li.model { color: var(--muted); font-size: 11px; opacity: .8; }
 .build-steps li .by { grid-column: 2; font-family: var(--mono); font-size: 10px; letter-spacing: .02em; color: var(--muted); margin-top: -6px; }
 .build-steps li .by:empty { display: none; }
-/* Over the photoreal globe, transparent controls lose their edges: give them the ground colour. */
-body.earth .modes, body.earth .look, body.earth .place-actions .iso-btn, body.earth .sig-head .iso-btn, body.earth .ask-chip, body.earth #hands-btn, body.earth #agent-chip { background-color: color-mix(in srgb, var(--ground) 84%, transparent); }
-body.earth .look-btn.is-on, body.earth .mode.is-on { background: var(--panel); }
-body.earth .log li { text-shadow: 0 1px 2px color-mix(in srgb, var(--ground) 80%, transparent); }
+/* Over the photoreal globe or the NASA Blue Marble fallback, transparent controls lose their edges. */
+body:is(.earth, .earth-fallback) .modes,
+body:is(.earth, .earth-fallback) .look,
+body:is(.earth, .earth-fallback) .place-actions .iso-btn,
+body:is(.earth, .earth-fallback) .sig-head .iso-btn,
+body:is(.earth, .earth-fallback) .ask-chip,
+body:is(.earth, .earth-fallback) #hands-btn,
+body:is(.earth, .earth-fallback) #agent-chip { background-color: color-mix(in srgb, var(--ground) 84%, transparent); }
+body:is(.earth, .earth-fallback) .look-btn.is-on,
+body:is(.earth, .earth-fallback) .mode.is-on { background: var(--panel); }
+body:is(.earth, .earth-fallback) .log li { text-shadow: 0 1px 2px color-mix(in srgb, var(--ground) 80%, transparent); }
 /* Legibility over bright terrain: a soft fade of the ground colour behind the panel and the title. */
-body.earth::before, body.earth::after { content: ""; position: fixed; z-index: 3; pointer-events: none; }
-body.earth::before { inset: 0 auto 0 0; width: min(560px, 100vw); background: linear-gradient(90deg, color-mix(in srgb, var(--ground) 82%, transparent) 0%, color-mix(in srgb, var(--ground) 55%, transparent) 70%, transparent 100%); }
+body:is(.earth, .earth-fallback)::before,
+body.earth::after { content: ""; position: fixed; z-index: 3; pointer-events: none; }
+body:is(.earth, .earth-fallback)::before { inset: 0 auto 0 0; width: min(560px, 100vw); background: linear-gradient(90deg, color-mix(in srgb, var(--ground) 82%, transparent) 0%, color-mix(in srgb, var(--ground) 55%, transparent) 70%, transparent 100%); }
 body.earth::after { right: 0; bottom: 0; width: min(620px, 60vw); height: 340px; background: radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--ground) 72%, transparent) 0%, transparent 70%); }
-@media (max-width: 760px) { body.earth::before { width: 100vw; height: 62vh; inset: 0 0 auto 0; background: linear-gradient(180deg, color-mix(in srgb, var(--ground) 80%, transparent) 55%, transparent); } body.earth::after { display: none; } }
+body.earth-fallback .credit { padding: 4px 8px; background: color-mix(in srgb, var(--ground) 68%, transparent); text-shadow: 0 1px 2px color-mix(in srgb, var(--ground) 85%, transparent); }
+/* The Places panel is a working surface, not a label: give it a solid-enough ground over imagery. */
+body.earth-fallback .place-panel {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--ground) 94%, transparent) 0%, color-mix(in srgb, var(--ground) 84%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--bone) 14%, transparent);
+  padding: 12px;
+  backdrop-filter: blur(10px);
+}
+body.earth-fallback #place-status { color: var(--bone-2); }
+@media (max-width: 760px) { body.earth::before { width: 100vw; height: 62vh; inset: 0 0 auto 0; background: linear-gradient(180deg, color-mix(in srgb, var(--ground) 80%, transparent) 55%, transparent); } body.earth::after { display: none; } body.earth-fallback::before { height: 38vh; background: linear-gradient(180deg, color-mix(in srgb, var(--ground) 52%, transparent) 0%, transparent 100%); } }
 /* Whole-Earth view: lenses and landmark actions belong to a place, not the planet. */
 body.globe .look, body.globe .place-actions { display: none; }
 @media (max-width: 760px) { body.globe .landmarks, body.globe #place-status { display: none; } }
@@ -404,6 +421,7 @@ body.mode-trends .sun { display: none !important; }
 /* Places fallback: the NASA satellite globe replaces the token-gated photoreal tiles. */
 body.earth-fallback #globe { display: block; }
 body.earth-fallback #stage { display: none; }
+body.earth-fallback .intro { display: none; }
 body.earth-fallback .place-panel .sig-head,
 body.earth-fallback .place-panel .signals,
 body.earth-fallback .place-panel .look,
@@ -442,6 +460,9 @@ body:not(.mode-places) .place-science { display: none !important; }
     top: auto; bottom: 0; left: 0; right: 0; width: 100%; max-height: 52vh;
     padding: 14px 18px calc(16px + env(safe-area-inset-bottom, 0px));
   }
+  /* On a phone the globe needs the space: dock it above the card and hide the browse list. */
+  body.earth-fallback:has(#place-science:not([hidden])) #globe { bottom: 52vh; }
+  #place-science:not([hidden]) ~ .place-panel { display: none; }
   .place-science h2 { font-size: 22px; }
   .trend-basemap { display: none; }
   .trend-archives { display: none; }
