@@ -124,6 +124,11 @@ NVIDIA_API_KEY=
 GEMINI_API_KEY=
 GROQ_API_KEY=
 
+# Optional: pin a model id per role (otherwise the provider's live list picks one).
+ATLAS_AGENT_MODEL=
+ATLAS_VISION_MODEL=
+ATLAS_FAST_MODEL=
+
 # Optional keyless explanation model. Defaults to the anonymous Pollinations endpoint.
 ATLAS_KEYLESS_MODEL=off          # disable
 ATLAS_KEYLESS_MODEL=gpt-oss-20b  # or pin another OpenAI-compatible id
@@ -172,7 +177,12 @@ The app already has a keyless open-model explanation path. To use the full keyed
 
 - `NVIDIA_API_KEY` — build.nvidia.com, free developer credits.
 - `NEBIUS_API_KEY` — Nebius Token Factory.
-- `GEMINI_API_KEY` — Google AI Studio free tier.
+- `GEMINI_API_KEY` — Google AI Studio free tier. AI Studio now issues `AQ.` auth keys, which
+  its OpenAI-compatible endpoint rejects, so ATLAS calls native `generateContent` when this
+  key is present. Text, tool calls, canvas images and JSON mode all run through that
+  transport. Working ids are `gemini-3.5-flash` (agent and vision) and
+  `gemini-3.5-flash-lite` (explanations); retired ids are replaced from the live model list,
+  and `ATLAS_AGENT_MODEL`, `ATLAS_VISION_MODEL` and `ATLAS_FAST_MODEL` pin a specific one.
 - `GROQ_API_KEY` — Groq free tier.
 
 The first key found wins. Never put a key in `src/`, `api/`, or a committed `.env` file; the
@@ -189,6 +199,9 @@ work; the ASK box stays hidden rather than failing at submit time.
 | `GET /api/trends?variable=t2m&lat=-3.5&lon=-62.5&start=1996&end=2025&mode=region&name=Amazon%20Basin` | NASA POWER series + Sen / Mann–Kendall / OLS |
 | `GET /api/trends?variable=streamflow&lat=49.2&lon=-122.7...` | Nearest active USGS or ECCC gauge and its annual record |
 | `POST /api/trend-explain` | Two-sentence explanation from pre-computed statistics |
+| `POST /api/ask` | ATLAS agent: answer plus scene tools (`fly_to`, `focus_part`, layers, feeds) |
+| `POST /api/scan` | Vision model: identify an object and its parts from one canvas frame |
+| `POST /api/construct` | Plan / build / critique steps for a 3D hologram of a real structure |
 | `GET /api/status` | Which model, keyless fallback and map token are actually live |
 | `GET /api/signals?layer=events` | Preserved NASA EONET open events |
 | `POST /api/geocode` | Place search |

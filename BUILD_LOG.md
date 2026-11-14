@@ -138,6 +138,14 @@ New-variable checks:
 - Added an optional **Ask the globe** box. It appears only when `/api/status` reports a keyed provider. `AgentContext` gained `onAnswer`/`onError`, the answer renders in the panel, and `fly_to` is routed to the Globe flight rather than forcing Places. The keyless path still explains trends but does not pretend to drive the agent.
 - Verified locally: whole-Earth photoreal disc at 1440×900 and 390×844; Statue of Liberty search lands at 420 m; France at 3,000 km; Paris at 6.5 km; Eiffel Tower via a mocked agent `fly_to` with the answer visible; NASA fallback search and Back to orbit; Details opens the science card with all three records. No page errors or failed map requests.
 
+### 9. Native Gemini transport for `AQ.` auth keys
+
+- AI Studio now issues `AQ.` auth keys. Its OpenAI-compatible endpoint rejects them (or times out); native `generateContent` accepts the same key.
+- Added a native Gemini transport inside `api/_nebius.ts`. It translates the app's OpenAI-shaped messages to `contents` / `systemInstruction`, converts canvas `image_url` data URLs to `inlineData`, maps function declarations to the OpenAPI subset Gemini accepts, converts function calls and function responses both ways, returns `thoughtSignature` with tool calls (Gemini 3 rejects the follow-up turn without it), supports JSON mode through `responseMimeType`, and maps native errors back to the existing `HttpError` path.
+- Model ids are `gemini-3.5-flash` for the agent and vision roles and `gemini-3.5-flash-lite` for fast explanations. `gemini-2.5-*` is retired for new accounts and `gemini-3.8-flash` timed out during testing; fallbacks are discovered from the live model list. Gemini 3 thinks by default, so requests use `thinkingLevel: minimal`, with a `low` retry only for multimodal models that reject `minimal`. Thinking tokens count against `maxOutputTokens`, so the output budget is raised with a cap.
+- `fly_to` now reuses curated landmark camera depth: an agent that supplies coordinates for the Eiffel Tower still lands at 720 m rather than the 1 km coordinate default.
+- Verified locally against the free key: `/api/status` reports `provider: gemini`, `agent: gemini-3.5-flash`; `/api/ask` returns `fly_to` for the Eiffel Tower in about 28 s; the Globe panel renders the answer and lands at 720 m with no console errors; `/api/trend-explain` returns a complete two-sentence explanation in about 3 s; `/api/scan` identifies the Statue of Liberty and its parts from a live canvas frame; `/api/construct` plans Charminar in four zones.
+
 ## Local verification
 
 - `npx tsc -p api/tsconfig.json` — passes.

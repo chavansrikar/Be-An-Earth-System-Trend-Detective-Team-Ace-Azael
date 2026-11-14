@@ -715,17 +715,20 @@ async function globeGo(target: Landmark) {
 /** Geocode a typed name or use exact coordinates, then traverse from orbit to a fitting depth. */
 async function globeFlyByName(place: string, lat?: number, lon?: number) {
   if (mode !== 'globe') return;
+  const q = place.toLowerCase();
+  const head = q.split(',')[0].trim();
+  const preset = LANDMARKS.find((l) => q.includes(l.name.toLowerCase()) || (head.length >= 5 && l.name.toLowerCase().includes(head)));
   const point = Number.isFinite(lat) && Number.isFinite(lon) ? { lat: Number(lat), lon: Number(lon) } : parseLatLon(place);
   if (point) {
     const sig = signals.active.length && /earthquake|quake|fire|storm|cyclone|ice|volcano|\bM ?\d/i.test(place);
     await globeGo({
       id: `globe-${Date.now()}`,
-      name: place.split(',')[0].trim() || 'Shared place',
-      city: `${point.lat.toFixed(3)}, ${point.lon.toFixed(3)}`,
-      lat: point.lat,
-      lon: point.lon,
-      view: sig ? 26000 : 1200,
-      lift: 20,
+      name: preset?.name || place.split(',')[0].trim() || 'Shared place',
+      city: preset?.city || `${point.lat.toFixed(3)}, ${point.lon.toFixed(3)}`,
+      lat: preset?.lat ?? point.lat,
+      lon: preset?.lon ?? point.lon,
+      view: sig ? 26000 : preset?.view ?? 1200,
+      lift: preset?.lift ?? 20,
     });
     return;
   }
