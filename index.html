@@ -18,6 +18,7 @@
       <nav class="modes" aria-label="Mode">
         <button type="button" class="mode is-on" data-mode="trends" aria-pressed="true">Trends</button>
         <button type="button" class="mode" data-mode="places" aria-pressed="false">Places</button>
+        <button type="button" class="mode" data-mode="globe" aria-pressed="false">Globe</button>
         <button type="button" class="mode" data-mode="library" aria-pressed="false">Library</button>
         <button type="button" class="mode" data-mode="scan" aria-pressed="false">Scan</button>
         <button type="button" class="mode" data-mode="build" aria-pressed="false">Build</button>
@@ -128,6 +129,50 @@
       </div>
       <p class="ps-source" id="ps-source"></p>
     </aside>
+
+    <section class="globe-panel" id="globe-panel" hidden aria-label="Globe view">
+      <div class="gp-top">
+        <span class="eyebrow">Globe</span>
+        <span class="gp-mode" id="globe-mode">NASA Blue Marble</span>
+      </div>
+      <form class="gp-search" id="globe-search" role="search">
+        <input id="globe-search-input" type="search" placeholder="Fly to a place or lat, lon" autocomplete="off" enterkeyhint="go" aria-label="Fly to a place" />
+        <button type="submit">Fly</button>
+      </form>
+      <p class="gp-status" id="globe-status" aria-live="polite">NASA Blue Marble · shaded relief + bathymetry</p>
+      <div class="gp-place" id="globe-place" hidden>
+        <b id="globe-place-name"></b>
+        <div class="gp-place-actions">
+          <button type="button" id="globe-back" class="gp-btn">Back to orbit</button>
+          <button type="button" id="globe-details" class="gp-btn">Details</button>
+          <button type="button" id="globe-place-trend" class="gp-btn">Trends</button>
+        </div>
+      </div>
+      <form class="gp-ask" id="globe-ask" hidden>
+        <input id="globe-ask-input" type="text" placeholder="Ask the globe: “take me to the Amazon”" autocomplete="off" aria-label="Ask the globe" />
+        <button type="submit">Ask</button>
+      </form>
+      <p class="gp-answer" id="globe-answer" hidden aria-live="polite"></p>
+      <div class="gp-actions" id="globe-layer-actions" role="group" aria-label="Globe layers">
+        <button type="button" id="globe-spin" class="gp-btn is-on" aria-pressed="true">Spin</button>
+        <button type="button" id="globe-lights" class="gp-btn is-on" aria-pressed="true">City lights</button>
+        <button type="button" id="globe-satellite" class="gp-btn" aria-pressed="false">Live clouds</button>
+        <button type="button" id="globe-reset" class="gp-btn">Reset</button>
+      </div>
+      <button type="button" id="globe-trend" class="gp-trend" hidden>Open this point in Trends</button>
+      <p class="gp-hint" id="globe-hint">Drag to turn · scroll to zoom · tap to mark</p>
+      <details class="gp-setup" id="globe-setup">
+        <summary>Enable photoreal 3D</summary>
+        <p>This view is NASA Blue Marble. Google Photorealistic 3D Tiles need one free map token:</p>
+        <ol>
+          <li><a href="https://ion.cesium.com/signup" target="_blank" rel="noopener">Create a free Cesium ion account</a>.</li>
+          <li>Open <a href="https://ion.cesium.com/assetdepot/2275207" target="_blank" rel="noopener">Asset 2275207 · Google Photorealistic 3D Tiles</a> and choose <b>Add to My Assets</b>.</li>
+          <li>Open <a href="https://ion.cesium.com/tokens" target="_blank" rel="noopener">Access Tokens</a>, create one with <code>assets:read</code> and asset 2275207 selected. Add an allowed URL for this site.</li>
+          <li>In Vercel open Project → Settings → Environment Variables and add <code>CESIUM_ION_TOKEN</code> to Production, then redeploy.</li>
+        </ol>
+        <p>Alternative: enable the Google Map Tiles API, create a browser key restricted to this site, and add <code>GOOGLE_MAPS_KEY</code> in Vercel.</p>
+      </details>
+    </section>
 
     <section class="intro" id="intro" hidden>
       <p class="eyebrow" id="model-kind">Mars 2020 · NASA/JPL</p>

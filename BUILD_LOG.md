@@ -129,6 +129,15 @@ New-variable checks:
 - Clicking a variable while the first trend request is still in flight previously did nothing, because the click only re-ran when a result already existed. Variable clicks now supersede the in-flight request through the existing sequence token.
 - Opening the app through `vite preview` makes `/api/trends` return `index.html`. The client now validates the response shape and shows “The NASA API returned an unexpected response…” instead of reading `.place.gauge` on an empty payload. Browser tests confirm no page errors in that case.
 
+### 8. Photoreal Globe tab, search and LLM fly-to
+
+- Wired the friend's existing `EarthView` Cesium/Google renderer into the third **Globe** tab. The app reads `CESIUM_ION_TOKEN` (Cesium ion asset `2275207`) or `GOOGLE_MAPS_KEY` from `/api/status`; the token itself never enters source control.
+- Fixed two integration bugs. An empty `#globe` NASA canvas was sitting above the photoreal stage and showing only its CSS gradient; it is now hidden unless the NASA fallback is active. The whole-Earth camera also aimed at the reoriented surface origin instead of the planet centre; `Stage.holdWholeEarth()` targets `(0, -6,371,000, 0)` and the dive starts from `height - Earth radius`, so the globe stays framed and the fall shrinks continuously instead of jumping.
+- Added a Globe panel search form. Nominatim now returns `type`, `class`, `addresstype` and `place_rank`; `viewForGeo()` maps those to a camera distance: country 3,000 km, state 1,600 km, county 250 km, city 6.5 km, town 3.8 km, village 2 km, park 60 km, river 30 km, landmark 420–450 m. Countries, states and counties land top-down; cities and landmarks keep the oblique 3D approach.
+- A search from orbit traverses the shortest great-circle arc while holding the camera in orbit, then dives. A search from street level first pulls back to orbit, settles into the whole-Earth hold, traverses and dives. `Back to orbit` reverses the move; `Details` opens the same place in Places with the NASA science card; `Trends` opens its 30-year record.
+- Added an optional **Ask the globe** box. It appears only when `/api/status` reports a keyed provider. `AgentContext` gained `onAnswer`/`onError`, the answer renders in the panel, and `fly_to` is routed to the Globe flight rather than forcing Places. The keyless path still explains trends but does not pretend to drive the agent.
+- Verified locally: whole-Earth photoreal disc at 1440×900 and 390×844; Statue of Liberty search lands at 420 m; France at 3,000 km; Paris at 6.5 km; Eiffel Tower via a mocked agent `fly_to` with the answer visible; NASA fallback search and Back to orbit; Details opens the science card with all three records. No page errors or failed map requests.
+
 ## Local verification
 
 - `npx tsc -p api/tsconfig.json` — passes.
@@ -145,7 +154,7 @@ New-variable checks:
 
 ## Known limitations
 
-- No paid services or API keys are used. The keyless model and all federal endpoints are free but can be rate-limited or briefly unavailable.
+- The NASA, USGS, ECCC and geocoding endpoints are free and keyless but can be rate-limited or briefly unavailable. Photoreal tiles use a Cesium ion token on its free Community plan; the Globe's LLM box needs a free keyed model provider.
 - NASA POWER is reanalysis on a coarse grid, not a local weather station.
 - Streamflow is a single ground gauge, not a basin average, and can be affected by dams, diversions, ice and channel change.
 - The Mann–Kendall p-value assumes independent annual values; serial correlation is not corrected.
@@ -153,7 +162,9 @@ New-variable checks:
 - Only temperature, precipitation, root-zone soil moisture and wind have a verified matching GIBS monthly layer. The other 26 POWER parameters and streamflow show no globe overlay rather than a misleading one.
 - The NASA POWER Data Access Viewer blocks embedding (`X-Frame-Options: DENY`), so ATLAS links to it and reproduces its parameter/export workflow instead of iframing it.
 - Five POWER degree-day parameters returned HTTP 500 during testing and are not offered.
-- Photoreal 3D tiles require a Cesium ion or Google Maps key and are not available in this deployment; Places uses the NASA globe.
+- Photoreal 3D tiles stream at Google's best available level of detail. Some regions, including much of India, are coarse; ATLAS does not smooth or fake them. If the token is absent or rejected, the Globe tab and Places fall back to the NASA globe.
+- The Globe's **Ask the globe** box stays hidden until a keyed model provider is configured. Typed place search works without any model key.
+- OpenStreetMap Nominatim supplies the place type and coordinates, not NASA. It is used only to choose the camera and the search target.
 - EONET and USGS earthquake layers inherit the friend's original implementation and are preserved, not rewritten.
 - The app never fills missing observations or invents citations. Failures are shown honestly.
 
@@ -176,8 +187,9 @@ GEMINI_API_KEY=
 GROQ_API_KEY=
 # Disable or pin the keyless explanation fallback.
 ATLAS_KEYLESS_MODEL=off        # or an OpenAI-compatible model id
-# Optional photoreal Places tiles.
+# Photoreal Globe and Places tiles (free Cesium ion Community token).
 CESIUM_ION_TOKEN=
+# Alternative: Google Map Tiles API key.
 GOOGLE_MAPS_KEY=
 ```
 

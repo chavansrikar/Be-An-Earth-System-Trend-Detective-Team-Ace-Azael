@@ -93,6 +93,15 @@ The DAV at <https://power.larc.nasa.gov/data-access-viewer/> sends `X-Frame-Opti
 - **Use:** the preserved **Places → Live signals → Events** layer (wildfires, severe storms, sea/lake ice, volcanoes, floods and other open events).
 - **Licence:** U.S. public domain (NASA).
 
+### Google Photorealistic 3D Tiles — supplementary, not NASA
+
+The Globe tab and Places can stream Google Photorealistic 3D Tiles through the friend's existing `src/earth.ts` renderer. ATLAS never caches, extracts or analyses these tiles; it only renders them, under Google's tile policies. The source is labelled in the attribution and is kept separate from every NASA statistic.
+
+- **Asset:** Cesium ion asset **2275207** (Google Photorealistic 3D Tiles), or the Google Map Tiles API.
+- **Token:** `CESIUM_ION_TOKEN` or `GOOGLE_MAPS_KEY`, served to the browser through `/api/status` because tiles stream directly from Google. Restrict the token to this site.
+- **Search:** OpenStreetMap Nominatim supplies coordinates and the place type; ATLAS turns that into a camera distance (country → 3,000 km, state → 1,600 km, county → 250 km, city → 6.5 km, park → 60 km, landmark → 420–450 m). The flight traverses the shortest great-circle arc before diving.
+- **Fallback:** if the token is absent or rejected, both views use the NASA Blue Marble globe below. No black canvas and no fabricated “photoreal” label.
+
 ### NASA Blue Marble basemap in Places
 
 When `CESIUM_ION_TOKEN` or `GOOGLE_MAPS_KEY` is not configured, Places does not pretend to have photoreal 3D tiles. It reuses the NASA globe with **Blue Marble shaded relief + bathymetry** — seamless at close range, unlike a daily MODIS scene with swath gaps — flies to the searched place at 2.35 Earth radii, and opens a NASA science card. The card is driven by the same NASA POWER and gauge APIs as the Trend Detective.
@@ -159,7 +168,7 @@ Implemented in `api/_trends.ts`, deterministic and independent of the language m
 - **NASA AppEEARS / earthdata login services:** require an Earthdata Login and often a task queue; not suitable for a keyless, server-live demo.
 - **NASA FIRMS:** useful for active fire but not an Earth-system trend variable in this build; EONET already covers open fire events.
 - **GIBS layers for evaporation, humidity, radiation and discharge:** not verified as faithful matches, so none are shown.
-- **Cesium ion / Google photoreal tiles:** optional, token-gated, and absent from this deployment. The NASA globe is the fallback, not a replacement for photoreal tiles.
+- **Cesium ion / Google photoreal tiles:** optional and token-gated, but configured in this deployment through the friend's existing `src/earth.ts` renderer and Cesium ion asset **2275207**. Tiles are streamed, never cached or analysed. Replace the token with your own before reusing the project; if it is absent or rejected, the NASA globe is the honest fallback, not a replacement for photoreal tiles.
 
 ## 6. Attribution and access dates
 

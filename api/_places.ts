@@ -8,9 +8,17 @@ interface Feature { n: string; h: number | null; l: number | null; t: string; p:
 export async function geocode(q: string) {
   const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`, { headers: { 'User-Agent': UA, 'Accept-Language': 'en' }, signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new HttpError(502, `Place search failed (${r.status})`);
-  const j = (await r.json()) as { lat: string; lon: string; display_name: string; type: string }[];
+  const j = (await r.json()) as { lat: string; lon: string; display_name: string; type?: string; class?: string; addresstype?: string; place_rank?: number }[];
   if (!j.length) throw new HttpError(404, `Could not find "${q}" on the map`);
-  return { lat: Number(j[0].lat), lon: Number(j[0].lon), name: j[0].display_name.split(',').slice(0, 2).join(',').trim() };
+  return {
+    lat: Number(j[0].lat),
+    lon: Number(j[0].lon),
+    name: j[0].display_name.split(',').slice(0, 2).join(',').trim(),
+    type: j[0].type || null,
+    class: j[0].class || null,
+    addresstype: j[0].addresstype || null,
+    rank: Number(j[0].place_rank) || null,
+  };
 }
 
 export async function buildings(lat: number, lon: number, radius: number): Promise<Feature[]> {

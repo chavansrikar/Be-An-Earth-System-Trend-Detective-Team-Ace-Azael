@@ -30,8 +30,9 @@ const state = {
 
 let globe: NasaGlobe | null = null;
 let globeVisible = false;
-let globeOwner: 'trends' | 'places' | null = null;
+let globeOwner: 'trends' | 'places' | 'globe' | null = null;
 let placePick: ((lat: number, lon: number) => void) | null = null;
+let globePick: ((lat: number, lon: number) => void) | null = null;
 let playTimer: number | null = null;
 let runSeq = 0;
 let activeGroup: VariableGroup = 'Atmosphere';
@@ -108,6 +109,73 @@ export function resetPlaceGlobe() {
   globe.setSpin(true);
 }
 
+/**
+ * The dedicated Globe tab. It owns the token-free NASA globe only when no photoreal map
+ * token is configured; with a token the main stage shows the Google/Cesium tiles instead.
+ */
+export function setGlobeTabMode(on: boolean) {
+  if (on) {
+    globeOwner = 'globe';
+    ensureGlobe();
+    globe?.start();
+  } else if (globeOwner === 'globe') {
+    globeOwner = null;
+    globe?.stop();
+  }
+}
+
+export function setGlobeTabPick(fn: ((lat: number, lon: number) => void) | null) {
+  globePick = fn;
+}
+
+/** Open the NASA globe as a whole planet: no marker, actual day/night terminator, city lights. */
+export function showGlobeTab() {
+  if (!globe) return;
+  const now = new Date();
+  globe.setBase('map', now.getUTCFullYear(), now.getUTCMonth() + 1);
+  globe.setOverlay(null, now.getUTCFullYear(), now.getUTCMonth() + 1);
+  globe.clearMarker();
+  globe.setLiveSun(true);
+  globe.setNight(true);
+  globe.settle();
+  globe.focus(12, 40, false, 4.5);
+  globe.setSpin(true);
+}
+
+/** Switch the NASA basemap without losing the marker or the lighting. */
+export function globeTabBase(mode: 'map' | 'satellite' | 'clouds') {
+  if (!globe) return;
+  const now = new Date();
+  globe.setBase(mode, now.getUTCFullYear(), now.getUTCMonth() + 1, 2048);
+}
+
+export function globeTabSpin(on: boolean) {
+  globe?.setSpin(on);
+}
+
+export function globeTabNight(on: boolean) {
+  globe?.setNight(on);
+}
+
+export function globeTabReset() {
+  if (!globe) return;
+  globe.setLiveSun(true);
+  globeTabBase('map');
+  globe.clearMarker();
+  globe.focus(12, 40, true, 4.5, 1.4);
+  globe.setSpin(true);
+}
+
+export function showGlobeTabMarker(lat: number, lon: number, name: string) {
+  globe?.setMarker(lat, lon, name);
+}
+
+/** Fly the NASA fallback globe to a searched place at a fitting orbit distance. */
+export function flyGlobeTab(lat: number, lon: number, name: string, distance = 2.75) {
+  globe?.setMarker(lat, lon, name, distance);
+  globe?.setSpin(false);
+}
+
 /** Open the Trend Detective at a place, reusing the same 30-year NASA record. */
 export function openTrendAt(place: Place, variable: VariableId = 't2m') {
   const start = document.getElementById('trend-start') as HTMLSelectElement | null;
@@ -149,12 +217,20 @@ function ensureGlobe() {
     (window as unknown as { trendGlobe?: NasaGlobe }).trendGlobe = globe;
   }
   globe.onPick = (lat, lon) => {
+    if (globePick) { globePick(lat, lon); return; }
     if (placePick) { placePick(lat, lon); return; }
     if (state.loading || !globeVisible) return;
     setPlace({ name: coordName(lat, lon), lat, lon, mode: 'point' }, false);
     void run();
   };
-  globe.onStatus = (text) => { $('trend-imagery-note').textContent = text; };
+  globe.onStatus = (text) => {
+    $('trend-imagery-note').textContent = text;
+    // The NASA texture callback fires after load; don't overwrite a searched place's status.
+    const row = document.getElementById('globe-place');
+    if (!document.body.classList.contains('globe-fallback') || (row && !row.hidden)) return;
+    const status = document.getElementById('globe-status');
+    if (status) status.textContent = text;
+  };
 }
 
 function coordName(lat: number, lon: number) {

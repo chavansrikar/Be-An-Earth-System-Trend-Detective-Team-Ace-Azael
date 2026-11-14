@@ -171,7 +171,7 @@ export class Stage {
    * empty kilometres, slow over the rooftops. The view tilts from top-down only near the end.
    * `target` is held by reference, so ground corrections during the dive move the landing.
    */
-  dive(target: THREE.Vector3, radius: number, fromDistance: number, dur = 6.5, done?: () => void) {
+  dive(target: THREE.Vector3, radius: number, fromDistance: number, dur = 6.5, done?: () => void, topDown = false) {
     this.landing = target;
     const end = this.approach.clone();
     const top = Stage.topDir(end);
@@ -181,7 +181,9 @@ export class Stage {
       // Linger on the globe, fall fast through the empty kilometres, settle over the rooftops.
       const e = 0.5 - 0.5 * Math.cos(Math.PI * Math.pow(k, 0.85));
       const dist = Math.exp(l0 + (l1 - l0) * e);
-      const tilt = THREE.MathUtils.smoothstep(k, 0.62, 1);
+      // Countries, states and counties read as maps: stay north-up and top-down. Cities and
+      // landmarks tilt to the approach angle so their height and facades are visible.
+      const tilt = topDown ? 0 : THREE.MathUtils.smoothstep(k, 0.62, 1);
       dir.copy(top).lerp(end, tilt).normalize();
       this.camera.position.copy(target).addScaledVector(dir, dist);
       this.controls.target.copy(target);
@@ -200,10 +202,10 @@ export class Stage {
   }
 
   /** Hold top-down at `height` until `ready()` (after at least `min` s, at most `max` s). */
-  holdUntil(height: number, ready: () => boolean, min: number, max: number, done: () => void) {
+  holdUntil(height: number, ready: () => boolean, min: number, max: number, done: () => void, wholeEarth = false) {
     const total = this.reducedMotion ? 0.001 : max;
     this.run(total, (k) => {
-      this.holdTopDown(height);
+      if (wholeEarth) this.holdWholeEarth(height); else this.holdTopDown(height);
       if (this.flight && k * total >= min && ready()) this.flight.t = 1;
     }, done);
     if (this.flight) this.flight.dur = total;
@@ -213,6 +215,17 @@ export class Stage {
   holdTopDown(height: number) {
     this.camera.position.copy(Stage.topDir(this.approach)).multiplyScalar(height);
     this.controls.target.set(0, 0, 0);
+  }
+
+  /**
+   * Whole-Earth orbit for photoreal tiles. The reorientation plugin puts the selected
+   * surface point at the local origin, so the planet's centre sits one Earth radius below
+   * it. Aim at that centre instead of the surface, or the globe falls out of frame.
+   */
+  holdWholeEarth(height: number) {
+    const R = 6371000;
+    this.camera.position.set(0, R * -1 + height, 0);
+    this.controls.target.set(0, -R, 0);
   }
 
   /** Climb straight up above the current target to `height` metres, levelling to top-down. */

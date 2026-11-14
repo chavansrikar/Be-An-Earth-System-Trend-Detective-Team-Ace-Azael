@@ -15,6 +15,9 @@ export interface AgentContext {
   setLens?: (lens: string) => void;
   orbit?: (speed: number) => void;
   isolate?: (on: boolean) => void;
+  /** Shown in the Globe panel when the answer arrives, instead of only the console. */
+  onAnswer?: (answer: string, sources: { title: string; url: string }[]) => void;
+  onError?: (message: string) => void;
 }
 
 interface AskReply {
@@ -54,6 +57,7 @@ export async function ask(question: string, ctx: AgentContext) {
       if (a.name === 'isolate') ctx.isolate?.(a.args.on !== false);
     }
     ui.log(j.answer, 'answer');
+    ctx.onAnswer?.(j.answer, j.sources);
     // Which model answered (the provider can fail over), so the viewer always knows who is talking.
     if (j.model) ui.log(`answered by ${j.model.split(' + ').map((m) => m.split('·').pop()!.trim().split('/').pop()).join(' + ')}`, 'model');
     if (ctx.focused() >= 0) { ui.setCardBody(j.answer); ui.setSources(j.sources); }
@@ -63,6 +67,8 @@ export async function ask(question: string, ctx: AgentContext) {
   } catch (err) {
     thinking.remove();
     const msg = err instanceof Error ? err.message : String(err);
+    const shown = msg.includes('No model key') ? 'The AI agent needs a free model key on the server. Add one in Vercel, then redeploy.' : msg.slice(0, 160);
+    ctx.onError?.(shown);
     ui.log(msg.includes('No model key') ? 'agent offline: no model key on the server yet' : `agent error: ${msg.slice(0, 120)}`, 'hot');
     setAgent('off');
   }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
-  baseGlobeUrl, cityLightsUrl, gibsDailyUrl, gibsUrl, satelliteLayer, variableById, type VariableId,
+  baseGlobeUrl, gibsDailyUrl, gibsUrl, satelliteLayer, variableById, type VariableId,
 } from './trends';
 
 /**
@@ -53,15 +53,24 @@ const earthVertex = /* glsl */ `
 
 const earthFragment = /* glsl */ `
   uniform sampler2D dayMap;
+  uniform sampler2D baseMap;
   uniform sampler2D nightMap;
   uniform vec3 uSun;
   uniform float uNight;
   uniform float uSatellite;
+  uniform float uCloud;
   varying vec2 vUv;
   varying vec3 vWorldNormal;
   varying vec3 vWorldPos;
   void main() {
-    vec3 day = texture2D(dayMap, vUv).rgb;
+    vec3 sat = texture2D(dayMap, vUv).rgb;
+    vec3 base = texture2D(baseMap, vUv).rgb;
+    // Daily MODIS has black swaths between passes. In cloud mode only near-white cloud and
+    // snow pixels are lifted onto the seamless Blue Marble base. Testing the weakest channel
+    // keeps bright deserts and bare land out, so swath edges do not show as stripes.
+    float white = min(sat.r, min(sat.g, sat.b));
+    float clouds = smoothstep(0.56, 0.80, white) * uCloud;
+    vec3 day = mix(base, sat, max(uSatellite, clouds));
     vec3 night = texture2D(nightMap, vUv).rgb;
     vec3 n = normalize(vWorldNormal);
     vec3 sun = normalize(uSun);
@@ -112,12 +121,14 @@ export class NasaGlobe {
   private overlayToken = 0;
   private overlayTarget = 0;
   private baseToken = 0;
-  private baseMode: 'map' | 'satellite' = 'map';
+  private baseMode: 'map' | 'satellite' | 'clouds' = 'map';
   private satKey = '';
   private mapTex: THREE.Texture | null = null;
   private satTex: THREE.Texture | null = null;
   private nightTex: THREE.Texture | null = null;
   private sunGoal = new THREE.Vector3(0.45, 0.5, 0.72).normalize();
+  private nightTarget = 1;
+  private liveSun = false;
   private flight: { from: THREE.Vector3; to: THREE.Vector3; t: number; dur: number } | null = null;
   private firstFlight = true;
   private down = { x: 0, y: 0, t: 0 };
@@ -162,10 +173,12 @@ export class NasaGlobe {
     this.earthMat = new THREE.ShaderMaterial({
       uniforms: {
         dayMap: { value: black },
+        baseMap: { value: black },
         nightMap: { value: black },
         uSun: { value: this.sunGoal.clone() },
         uNight: { value: 0 },
         uSatellite: { value: 0 },
+        uCloud: { value: 0 },
       },
       vertexShader: earthVertex,
       fragmentShader: earthFragment,
@@ -247,32 +260,61 @@ export class NasaGlobe {
   }
 
   private loadBlueMarble() {
-    const width = this.compact ? 2048 : 4096;
-    this.loader.load(
-      baseGlobeUrl(width),
-      (tex) => {
-        tex.colorSpace = THREE.NoColorSpace;
-        tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-        if (this.baseMode === 'satellite' && this.satTex) { tex.dispose(); return; }
-        this.mapTex = tex;
+    const high = this.compact ? 2048 : 4096;
+    const apply = (tex: THREE.Texture) => {
+      tex.colorSpace = THREE.NoColorSpace;
+      tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      const old = this.mapTex;
+      this.mapTex = tex;
+      if (this.baseMode === 'map') {
         this.earthMat.uniforms.dayMap.value = tex;
         this.earthMat.uniforms.uSatellite.value = 0;
+      }
+      // The base is also the gap filler under daily satellite swaths.
+      this.earthMat.uniforms.baseMap.value = tex;
+      if (old && old !== tex) old.dispose();
+    };
+    const upgrade = () => {
+      if (high <= 2048) return;
+      this.loader.load(
+        baseGlobeUrl(high),
+        (hi) => {
+          apply(hi);
+          this.onStatus?.('NASA Blue Marble · shaded relief + bathymetry');
+        },
+        undefined,
+        () => { /* the 2048 px mosaic stays */ },
+      );
+    };
+    // A local 2048 px mosaic paints the planet on the first frame; NASA GIBS then upgrades it.
+    this.loader.load(
+      '/earth/blue-marble-2048.jpg',
+      (tex) => {
+        apply(tex);
         this.onStatus?.('NASA Blue Marble · shaded relief + bathymetry');
+        upgrade();
       },
       undefined,
-      () => this.onStatus?.('NASA Blue Marble is not responding; the variable overlay still draws.'),
+      () => {
+        this.loader.load(
+          baseGlobeUrl(1024),
+          (tex) => { apply(tex); this.onStatus?.('NASA Blue Marble · shaded relief + bathymetry'); upgrade(); },
+          undefined,
+          () => this.onStatus?.('NASA Blue Marble is not responding; the variable overlay still draws.'),
+        );
+      },
     );
   }
 
   private loadNightLights() {
     this.loader.load(
-      cityLightsUrl(this.compact ? 1024 : 2048),
+      '/earth/city-lights-1024.png',
       (tex) => {
         tex.colorSpace = THREE.NoColorSpace;
         tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
         this.nightTex = tex;
         this.earthMat.uniforms.nightMap.value = tex;
-        this.earthMat.uniforms.uNight.value = 1;
+        this.earthMat.uniforms.uNight.value = this.nightTarget;
       },
       undefined,
       () => { /* the globe still works without city lights */ },
@@ -280,45 +322,52 @@ export class NasaGlobe {
   }
 
   /**
-   * Switch the base map. "map" is the Blue Marble mosaic; "satellite" is the original MODIS Terra
-   * true-colour image for the 15th of the chosen month (clamped to dates that exist), clouds included.
+   * Switch the base map. "map" is the Blue Marble mosaic. "satellite" is the daily MODIS Terra
+   * true-colour scene, gaps and all. "clouds" lifts only the bright daily clouds onto the
+   * seamless Blue Marble base, which is the good-looking view for the Globe tab.
    */
-  setBase(mode: 'map' | 'satellite', year: number, month: number) {
+  setBase(mode: 'map' | 'satellite' | 'clouds', year: number, month: number, width = 2048) {
     if (mode === 'map') {
       this.baseMode = 'map';
       this.baseToken += 1;
       if (this.mapTex) {
         this.earthMat.uniforms.dayMap.value = this.mapTex;
         this.earthMat.uniforms.uSatellite.value = 0;
+        this.earthMat.uniforms.uCloud.value = 0;
         this.onStatus?.('NASA Blue Marble · shaded relief + bathymetry');
       }
       return;
     }
-    this.baseMode = 'satellite';
+    this.baseMode = mode;
+    const cloudsOnly = mode === 'clouds';
     const layer = satelliteLayer();
     const { y, m, d } = this.satelliteDate(year, month);
+    const stamp = `${String(d).padStart(2, '0')} ${monthName(m)} ${y}`;
+    const label = cloudsOnly ? `NASA GIBS · MODIS Terra daily clouds over Blue Marble, ${stamp}` : `NASA GIBS · MODIS Terra true colour, ${stamp}`;
     const key = `${y}-${m}`;
+    const show = () => {
+      this.earthMat.uniforms.dayMap.value = this.satTex!;
+      this.earthMat.uniforms.uSatellite.value = cloudsOnly ? 0 : 1;
+      this.earthMat.uniforms.uCloud.value = cloudsOnly ? 1 : 0;
+      this.onStatus?.(label);
+    };
     if (this.satTex && this.satKey === key) {
-      this.earthMat.uniforms.dayMap.value = this.satTex;
-      this.earthMat.uniforms.uSatellite.value = 1;
-      this.onStatus?.(`NASA GIBS · MODIS Terra true colour, ${String(d).padStart(2, '0')} ${monthName(m)} ${y}`);
+      show();
       return;
     }
     this.baseToken += 1;
     const token = this.baseToken;
     this.satKey = key;
-    this.onStatus?.(`NASA GIBS · MODIS Terra true colour, ${String(d).padStart(2, '0')} ${monthName(m)} ${y}`);
+    this.onStatus?.(label);
     this.loader.load(
-      gibsDailyUrl(layer, y, m, d),
+      gibsDailyUrl(layer, y, m, d, width),
       (tex) => {
         if (token !== this.baseToken) { tex.dispose(); return; }
         tex.colorSpace = THREE.NoColorSpace;
         tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
         if (this.satTex) this.satTex.dispose();
         this.satTex = tex;
-        this.earthMat.uniforms.dayMap.value = tex;
-        this.earthMat.uniforms.uSatellite.value = 1;
-        this.onStatus?.(`NASA GIBS · MODIS Terra true colour, ${String(d).padStart(2, '0')} ${monthName(m)} ${y}`);
+        show();
       },
       undefined,
       () => {
@@ -326,6 +375,7 @@ export class NasaGlobe {
         this.baseMode = 'map';
         if (this.mapTex) this.earthMat.uniforms.dayMap.value = this.mapTex;
         this.earthMat.uniforms.uSatellite.value = 0;
+        this.earthMat.uniforms.uCloud.value = 0;
         this.onStatus?.('No MODIS scene for that month; showing NASA Blue Marble.');
       },
     );
@@ -393,6 +443,12 @@ export class NasaGlobe {
     );
   }
 
+  /** Suppress the Places opening fly-in; the Globe tab drops pins without moving the camera. */
+  settle() {
+    this.firstFlight = false;
+    this.flight = null;
+  }
+
   /** Point the camera at a coordinate, keeping the current zoom (or a given distance). */
   focus(lat: number, lon: number, animate = true, distance?: number, duration = 1.15) {
     const p = latLonToVector3(THREE.MathUtils.clamp(lat, -75, 75), lon, 1).normalize();
@@ -436,6 +492,24 @@ export class NasaGlobe {
     this.controls.autoRotate = on;
   }
 
+  /** Cross-fade the NASA VIIRS night lights (1 = full, 0 = off). */
+  setNight(on: boolean) {
+    this.nightTarget = on ? 1 : 0;
+  }
+
+  /** Put the Sun at the real subsolar point, so the terminator and city lights are honest. */
+  setLiveSun(on: boolean) {
+    this.liveSun = on;
+    if (!on) return;
+    const now = new Date();
+    const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const doy = Math.floor((day - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400e3);
+    const decl = -23.44 * Math.cos((2 * Math.PI / 365.24) * (doy + 10));
+    const hours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+    const lon = 180 - hours * 15;
+    this.sunGoal.copy(latLonToVector3(decl, lon, 1)).normalize();
+  }
+
   start() {
     if (this.running) return;
     this.running = true;
@@ -460,11 +534,25 @@ export class NasaGlobe {
     }
     this.controls.update();
 
+    // Globe tab: the real subsolar point is the light source, once a second is plenty.
+    if (this.liveSun) {
+      const now = new Date();
+      const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+      const doy = Math.floor((day - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400e3);
+      const decl = -23.44 * Math.cos((2 * Math.PI / 365.24) * (doy + 10));
+      const hours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+      this.sunGoal.copy(latLonToVector3(decl, 180 - hours * 15, 1)).normalize();
+    }
+
     // Ease the sun toward the selected region; the atmosphere follows the same direction.
     const sun = this.earthMat.uniforms.uSun.value as THREE.Vector3;
     sun.lerp(this.sunGoal, Math.min(1, dt * 0.9)).normalize();
     const atmo = this.scene.getObjectByName('atmosphere') as THREE.Mesh | undefined;
     if (atmo) (atmo.material as THREE.ShaderMaterial).uniforms.uSun.value.copy(sun);
+
+    // Fade the night lights instead of snapping them.
+    const night = this.earthMat.uniforms.uNight.value as number;
+    this.earthMat.uniforms.uNight.value = night + (this.nightTarget - night) * Math.min(1, dt * 3.5);
 
     const op = this.overlayMat.opacity + (this.overlayTarget - this.overlayMat.opacity) * Math.min(1, dt * 5);
     this.overlayMat.opacity = op;
