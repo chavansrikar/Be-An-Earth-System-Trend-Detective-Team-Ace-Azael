@@ -150,7 +150,9 @@ New-variable checks:
 
 - Production URL: <https://atlas-ace-azael.vercel.app/>
 - Deploy command: `NODE_OPTIONS="--dns-result-order=ipv4first" npx vercel deploy --prod --yes`.
-- The production deployment of the hydrology, keyless-explanation, globe and Places-fallback changes is recorded below after it is verified.
+- Commit `9ad45d2` deployed the Globe tab, photoreal search, depth-aware fly-to, LLM routing, NASA fallback, Places science hand-off and the reconciled documentation. `CESIUM_ION_TOKEN` is set for Production, Preview and Development.
+- Live verification on 14 November 2026: `/api/status` reports `earth.kind = ion`; the whole photoreal Earth renders at 1440×900; **Statue of Liberty** geocodes, traverses from orbit and lands at a 420 m view; **Details** opens Places with the NASA science card: air temperature +0.41 °C/decade (p = 0.005), precipitation +113 mm/year/decade (p = 0.035), and USGS gauge 01393450 at 15.1 km (+0.052 m³/s/decade, p = 0.134, not significant). No console or page errors.
+- Local verification also covered a mocked agent `fly_to` to the Eiffel Tower, the NASA fallback search for Paris, the 390×844 mobile Globe, and Back to orbit from both renderers.
 
 ## Known limitations
 
