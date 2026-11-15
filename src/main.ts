@@ -19,7 +19,7 @@ import { LENSES, type Lens } from './lens';
 import { toHologram, applyFixes, type BuiltPart } from './construct';
 import { loadSplat, disposeSplat } from './splat';
 import { SignalLayers, ago, type Signal, type LayerId } from './signals';
-import { initTrends, setTrendMode, trendContext, setPlaceGlobeMode, setPlaceGlobePick, showPlaceGlobe, resetPlaceGlobe, openTrendAt, setGlobeTabMode, setGlobeTabPick, showGlobeTab, globeTabBase, globeTabSpin, globeTabNight, globeTabReset, showGlobeTabMarker, flyGlobeTab } from './trends-ui';
+import { initTrends, setTrendMode, trendContext, setPlaceGlobeMode, setPlaceGlobePick, showPlaceGlobe, resetPlaceGlobe, openTrendAt, openCompare, setGlobeTabMode, setGlobeTabPick, showGlobeTab, globeTabBase, globeTabSpin, globeTabNight, globeTabReset, showGlobeTabMarker, flyGlobeTab } from './trends-ui';
 import { fmt, decimalsFor, type TrendResult } from './trends';
 
 applyCss(theme);
@@ -431,6 +431,11 @@ let sunLine: THREE.Line | null = null;
   if (q) searchPlace(q);
 });
 
+document.getElementById('place-compare')?.addEventListener('click', () => {
+  setMode('trends');
+  openCompare(place ? { name: place.name, lat: place.lat, lon: place.lon, mode: 'point' } : undefined);
+});
+
 export async function loadPlace(q: string) {
   placeStatus.textContent = `finding ${q} on OpenStreetMap`;
   ui.log(`place: ${q}`, 'you');
@@ -719,6 +724,19 @@ async function globeFlyByName(place: string, lat?: number, lon?: number) {
   const head = q.split(',')[0].trim();
   const preset = LANDMARKS.find((l) => q.includes(l.name.toLowerCase()) || (head.length >= 5 && l.name.toLowerCase().includes(head)));
   const point = Number.isFinite(lat) && Number.isFinite(lon) ? { lat: Number(lat), lon: Number(lon) } : parseLatLon(place);
+  if (!point && preset) {
+    // A curated landmark keeps its own coordinates and depth (Eiffel 720 m, Liberty 330 m).
+    await globeGo({
+      id: `globe-${preset.id}`,
+      name: preset.name,
+      city: preset.city,
+      lat: preset.lat,
+      lon: preset.lon,
+      view: preset.view,
+      lift: preset.lift,
+    });
+    return;
+  }
   if (point) {
     const sig = signals.active.length && /earthquake|quake|fire|storm|cyclone|ice|volcano|\bM ?\d/i.test(place);
     await globeGo({
@@ -763,6 +781,9 @@ async function globeFlyTo(target: Landmark) {
   disableGlobeTabFallback();
   earthOn();
   stage.resume();
+  setGlobeToggle('globe-lights', false);
+  setGlobeToggle('globe-satellite', false);
+  updateGlobeViewToggles('photo', true);
   globe = null;
   globePlace = target;
   globeRow(target);
@@ -874,7 +895,7 @@ function globeBackToOrbit() {
     if (mode !== 'globe') return;
     originLL = { lat: at.lat, lon: at.lon };
     stage.earth.setOrigin(at.lat, at.lon);
-    globe = { lat: at.lat, lon: at.lon, dist: height, spin: !reducedMotion };
+    globe = { lat: at.lat, lon: at.lon, dist: height, spin: document.getElementById('globe-spin')?.getAttribute('aria-pressed') === 'true' };
     setGlobeStatus('Google Photorealistic 3D Tiles · drag to orbit · scroll to zoom');
   });
 }
@@ -891,6 +912,7 @@ function pickGlobePoint(lat: number, lon: number) {
 
 function enableGlobeTabFallback() {
   if (mode !== 'globe') return;
+  ++globeFlightSeq;
   globeTabFallbackActive = true;
   document.body.classList.add('globe-fallback');
   stage.pause();
@@ -910,6 +932,7 @@ function enableGlobeTabFallback() {
   $('globe-mode').textContent = 'NASA Blue Marble';
   $('globe-hint').textContent = 'Drag to turn · scroll to zoom · tap to mark';
   $('credit').textContent = 'NASA GIBS Blue Marble + VIIRS city lights · NASA POWER for trends';
+  updateGlobeViewToggles('nasa');
   setGlobeStatus('NASA Blue Marble · live day/night terminator · VIIRS city lights');
 }
 
@@ -920,6 +943,47 @@ function disableGlobeTabFallback() {
   setGlobeTabPick(null);
   document.body.classList.remove('globe-fallback');
   globePick = null;
+}
+
+type GlobeView = 'photo' | 'nasa';
+
+/** The renderer switch: Google's photoreal tiles or the NASA Blue Marble globe. */
+function updateGlobeViewToggles(view: GlobeView, photoAvailable = Boolean(earthAuth)) {
+  const photo = document.getElementById('globe-view-photo') as HTMLButtonElement | null;
+  const nasa = document.getElementById('globe-view-nasa') as HTMLButtonElement | null;
+  if (!photo || !nasa) return;
+  photo.disabled = !photoAvailable;
+  photo.title = photoAvailable
+    ? 'Google Photorealistic 3D Tiles streamed through Cesium ion'
+    : 'Add a Cesium ion or Google Maps token to enable photoreal tiles';
+  nasa.title = 'NASA GIBS Blue Marble with live day/night and VIIRS city lights';
+  for (const [b, on] of [[photo, view === 'photo'], [nasa, view === 'nasa']] as const) {
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+  const lights = document.getElementById('globe-lights');
+  const clouds = document.getElementById('globe-satellite');
+  if (lights) lights.title = view === 'photo' ? 'City lights (switches to the NASA renderer)' : 'VIIRS city lights';
+  if (clouds) clouds.title = view === 'photo' ? 'Live clouds (switches to the NASA renderer)' : 'Today’s MODIS Terra clouds';
+}
+
+async function setGlobeView(view: GlobeView) {
+  if (mode !== 'globe') return;
+  if (view === 'nasa') {
+    if (globeTabFallbackActive) { updateGlobeViewToggles('nasa'); return; }
+    enableGlobeTabFallback();
+    setGlobeStatus('NASA Blue Marble · live day/night terminator · VIIRS city lights');
+    return;
+  }
+  const auth = await getEarthAuth();
+  if (mode !== 'globe') return;
+  if (!auth) {
+    enableGlobeTabFallback();
+    updateGlobeViewToggles('nasa', false);
+    setGlobeStatus('Photoreal tiles need a Cesium ion or Google Maps token · NASA Blue Marble is showing');
+    return;
+  }
+  await enterGlobeTab();
 }
 
 /**
@@ -934,10 +998,12 @@ async function enterGlobeTab() {
   globePlace = null;
   globeRow(null);
   showGlobeAnswer('');
+  $('globe-mode').textContent = 'Opening globe…';
+  setGlobeStatus('Opening the globe…');
   void refreshGlobeAgent();
   const auth = await getEarthAuth();
   if (mode !== 'globe' || seq !== globeTabRequest) return;
-  if (!auth) { enableGlobeTabFallback(); return; }
+  if (!auth) { enableGlobeTabFallback(); updateGlobeViewToggles('nasa', false); return; }
 
   disableGlobeTabFallback();
   earthOn();
@@ -954,13 +1020,17 @@ async function enterGlobeTab() {
   $('parts-n').textContent = '';
   document.body.classList.add('globe');
   const actions = document.getElementById('globe-layer-actions');
-  if (actions) actions.hidden = true;
+  if (actions) actions.hidden = false;
   const setup = document.getElementById('globe-setup');
   if (setup) setup.hidden = true;
   const trend = document.getElementById('globe-trend') as HTMLButtonElement | null;
   if (trend) trend.hidden = true;
+  setGlobeToggle('globe-spin', !reducedMotion);
+  setGlobeToggle('globe-lights', false);
+  setGlobeToggle('globe-satellite', false);
+  updateGlobeViewToggles('photo', true);
   $('globe-mode').textContent = auth.kind === 'ion' ? 'Photoreal · Cesium ion' : auth.kind === 'google' ? 'Photoreal · Google tiles' : 'Photoreal · 3D Tiles';
-  $('globe-hint').textContent = 'Drag to orbit · scroll to zoom';
+  $('globe-hint').textContent = 'Drag to orbit · scroll to zoom · Spin turns the planet';
   setGlobeStatus('Google Photorealistic 3D Tiles · drag to orbit · scroll to zoom');
   stage.earth.onAttribution = (html) => { $('credit').innerHTML = html; };
   $('credit').textContent = 'Imagery and 3D tiles © Google · streamed through Cesium ion';
@@ -979,22 +1049,45 @@ async function enterGlobeTab() {
   }
 }
 
-// Globe tab controls (present for both renderers; the layer buttons only show for the fallback).
+// Globe tab controls (the renderer switch and layers work in both views).
 (document.getElementById('globe-spin') as HTMLButtonElement).addEventListener('click', (ev) => {
   const b = ev.currentTarget as HTMLButtonElement;
   const on = b.getAttribute('aria-pressed') !== 'true';
   setGlobeToggle('globe-spin', on);
-  globeTabSpin(on);
+  if (globeTabFallbackActive) {
+    globeTabSpin(on);
+  } else if (globe) {
+    globe.spin = on;
+    setGlobeStatus(on ? 'Spinning eastward · click Spin to stop' : 'Spin stopped · drag to orbit');
+  } else {
+    setGlobeStatus(on ? 'Spin on · Back to orbit to see the planet turn' : 'Spin off');
+  }
 });
 (document.getElementById('globe-lights') as HTMLButtonElement).addEventListener('click', (ev) => {
   const b = ev.currentTarget as HTMLButtonElement;
   const on = b.getAttribute('aria-pressed') !== 'true';
+  if (!globeTabFallbackActive) {
+    // VIIRS lights are part of the NASA globe, not the Google tile pyramid.
+    enableGlobeTabFallback();
+    setGlobeToggle('globe-lights', true);
+    globeTabNight(true);
+    setGlobeStatus('VIIRS city lights · switched to NASA Blue Marble');
+    return;
+  }
   setGlobeToggle('globe-lights', on);
   globeTabNight(on);
 });
 (document.getElementById('globe-satellite') as HTMLButtonElement).addEventListener('click', (ev) => {
   const b = ev.currentTarget as HTMLButtonElement;
   const on = b.getAttribute('aria-pressed') !== 'true';
+  if (!globeTabFallbackActive) {
+    // Live clouds are a NASA GIBS layer; switch renderer and apply it straight away.
+    enableGlobeTabFallback();
+    setGlobeToggle('globe-satellite', true);
+    globeTabBase('clouds');
+    setGlobeStatus('NASA GIBS · switched to NASA Blue Marble · loading today’s MODIS Terra clouds…');
+    return;
+  }
   setGlobeToggle('globe-satellite', on);
   globeTabBase(on ? 'clouds' : 'map');
   setGlobeStatus(on ? 'NASA GIBS · loading today’s MODIS Terra clouds…' : 'NASA Blue Marble · live day/night terminator');
@@ -1002,15 +1095,21 @@ async function enterGlobeTab() {
 (document.getElementById('globe-reset') as HTMLButtonElement).addEventListener('click', () => {
   globePick = null;
   setGlobeToggle('globe-spin', true);
-  setGlobeToggle('globe-lights', true);
+  setGlobeToggle('globe-lights', globeTabFallbackActive);
   setGlobeToggle('globe-satellite', false);
   const trend = document.getElementById('globe-trend') as HTMLButtonElement | null;
   if (trend) trend.hidden = true;
-  if (!globeTabFallbackActive) { globeBackToOrbit(); return; }
+  if (!globeTabFallbackActive) {
+    updateGlobeViewToggles('photo');
+    globeBackToOrbit();
+    return;
+  }
   globeTabReset();
   globeRow(null);
   setGlobeStatus('NASA Blue Marble · live day/night terminator · VIIRS city lights');
 });
+(document.getElementById('globe-view-photo') as HTMLButtonElement).addEventListener('click', () => void setGlobeView('photo'));
+(document.getElementById('globe-view-nasa') as HTMLButtonElement).addEventListener('click', () => void setGlobeView('nasa'));
 
 (document.getElementById('globe-search') as HTMLFormElement).addEventListener('submit', (ev) => {
   ev.preventDefault();
@@ -1804,7 +1903,8 @@ window.addEventListener('keydown', (e) => {
     if (!earthActive) return;
     signals.update(t);
     if (globe && !stage.flying) {
-      if (globe.spin && !globeDrag) globe.lon = ((globe.lon + dt * 2.2 + 540) % 360) - 180;
+      // Eastward rotation: the ground moves left as the planet turns under the camera.
+      if (globe.spin && !globeDrag) globe.lon = ((globe.lon - dt * 2.2 + 540) % 360) - 180;
       stage.controls.autoRotate = false;
       stage.controls.enabled = false;
       stage.earth.setOrigin(globe.lat, globe.lon);

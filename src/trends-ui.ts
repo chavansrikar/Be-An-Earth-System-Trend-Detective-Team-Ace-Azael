@@ -40,6 +40,21 @@ let activeGroup: VariableGroup = 'Atmosphere';
 interface ChartPoint { x: number; y: number; label: string; value: string }
 let chartMeta: { points: ChartPoint[]; left: number; right: number } | null = null;
 
+interface CompareEntry { place: Place; result?: TrendResult; error?: string }
+type TrendView = 'single' | 'compare';
+const compare = {
+  view: 'single' as TrendView,
+  count: 3,
+  values: ['Amazon Basin', 'Sahel', 'Himalayas'] as string[],
+  entries: [] as CompareEntry[],
+  loading: false,
+  start: 1996,
+  end: 2025,
+  variable: 't2m' as VariableId,
+};
+let compareSeq = 0;
+let lastGeocodeAt = 0;
+
 const YEAR_MIN = 1981;
 const YEAR_MAX = 2025;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -50,6 +65,8 @@ export function initTrends() {
   buildGroups();
   buildVariables();
   buildPresets();
+  buildComparePresets();
+  buildCompareRows();
   bindEvents();
   paintActive();
   void probeAi();
@@ -178,6 +195,7 @@ export function flyGlobeTab(lat: number, lon: number, name: string, distance = 2
 
 /** Open the Trend Detective at a place, reusing the same 30-year NASA record. */
 export function openTrendAt(place: Place, variable: VariableId = 't2m') {
+  setView('single');
   const start = document.getElementById('trend-start') as HTMLSelectElement | null;
   const end = document.getElementById('trend-end') as HTMLSelectElement | null;
   const input = document.getElementById('trend-place') as HTMLInputElement | null;
@@ -200,6 +218,15 @@ export function openTrendAt(place: Place, variable: VariableId = 't2m') {
 
 /** A short, factual line for the existing Ask ATLAS console. */
 export function trendContext() {
+  if (compare.view === 'compare' && compare.entries.length) {
+    const info = variableById(compare.variable);
+    const ok = compare.entries.filter((e) => e.result?.stats);
+    const list = ok.map((e) => {
+      const s = e.result!.stats!;
+      return `${e.place.name}: Sen ${s.senPerDecade > 0 ? '+' : ''}${fmt(s.senPerDecade, decimalsFor(info.id))} ${info.annualUnit}/decade, p=${s.mk.p < 0.001 ? '<0.001' : s.mk.p.toFixed(3)} (${s.mk.significant ? 'significant' : 'not significant'})`;
+    }).join('; ');
+    return `NASA POWER comparison for ${info.label}, ${compare.start}-${compare.end}: ${list || 'no place had enough complete years for a trend test'}.`;
+  }
   const r = state.result;
   if (!r) return 'No NASA trend has been run yet.';
   const s = r.stats;
@@ -294,7 +321,10 @@ function buildVariables() {
       state.variable = v.id;
       paintActive();
       // Supersede any in-flight request: the newest variable wins.
-      if (state.loadedOnce) void run();
+      if (compare.view === 'compare') {
+        if (compare.entries.length) void runCompare();
+        else updateOverlay();
+      } else if (state.loadedOnce) void run();
       else updateOverlay();
     });
     box.appendChild(b);
@@ -318,6 +348,94 @@ function buildPresets() {
       void run();
     });
     box.appendChild(b);
+  }
+}
+
+function buildComparePresets() {
+  const dl = $('compare-presets');
+  dl.replaceChildren();
+  for (const p of PRESETS) {
+    const o = document.createElement('option');
+    o.value = p.name;
+    o.label = p.blurb;
+    dl.appendChild(o);
+  }
+}
+
+function readCompareInputs() {
+  document.querySelectorAll<HTMLInputElement>('#compare-rows input').forEach((input, i) => {
+    if (i < compare.values.length) compare.values[i] = input.value;
+  });
+}
+
+function updateRunLabel() {
+  $('trend-run').textContent = compare.view === 'compare'
+    ? `Compare ${compare.count} place${compare.count === 1 ? '' : 's'}`
+    : 'Run the NASA numbers';
+}
+
+function buildCompareRows() {
+  const select = $<HTMLSelectElement>('compare-count');
+  const count = Math.min(6, Math.max(2, Number(select.value) || 3));
+  compare.count = count;
+  select.value = String(count);
+  readCompareInputs();
+  const defaults = ['Amazon Basin', 'Sahel', 'Himalayas', 'Greenland', 'California', 'Hyderabad'];
+  while (compare.values.length < count) compare.values.push(defaults[compare.values.length] || '');
+  const box = $('compare-rows');
+  box.replaceChildren();
+  for (let i = 0; i < count; i++) {
+    const row = document.createElement('label');
+    row.className = 'compare-row';
+    const index = document.createElement('span');
+    index.className = 'compare-index';
+    index.textContent = String(i + 1);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = compare.values[i] || '';
+    input.placeholder = i === 0 ? 'e.g. Amazon Basin' : 'Place name or lat, lon';
+    input.setAttribute('list', 'compare-presets');
+    input.setAttribute('aria-label', `Comparison place ${i + 1}`);
+    input.addEventListener('input', () => { compare.values[i] = input.value; });
+    row.append(index, input);
+    box.appendChild(row);
+  }
+  updateRunLabel();
+}
+
+function setView(view: TrendView) {
+  compare.view = view;
+  document.querySelectorAll<HTMLElement>('#trend-view button').forEach((b) => {
+    const on = b.dataset.view === view;
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  $('trend-locate').hidden = view === 'compare';
+  $('trend-presets').hidden = view === 'compare';
+  $('compare-setup').hidden = view !== 'compare';
+  document.querySelectorAll<HTMLElement>('.trend-imagery-field').forEach((el) => { el.hidden = view === 'compare'; });
+  updateRunLabel();
+  if (view === 'single') {
+    $('compare-result').hidden = true;
+    if (state.result) $('trend-result').hidden = false;
+  } else {
+    $('trend-result').hidden = true;
+    if (compare.entries.length) $('compare-result').hidden = false;
+    buildCompareRows();
+    drawCompareChart();
+  }
+}
+
+/** Open comparison mode, optionally seeded with the place the viewer is already looking at. */
+export function openCompare(seed?: Place) {
+  setView('compare');
+  if (seed) {
+    const picks = [seed.name, ...PRESETS.filter((p) => p.name !== seed.name).map((p) => p.name)];
+    compare.values = picks.slice(0, Math.max(2, compare.count));
+    buildCompareRows();
+    const first = document.querySelector<HTMLInputElement>('#compare-rows input');
+    first?.focus();
+    first?.select();
   }
 }
 
@@ -352,7 +470,16 @@ function bindEvents() {
     const q = $<HTMLInputElement>('trend-place').value.trim();
     if (q) void locate(q);
   });
-  $('trend-run').addEventListener('click', () => void run());
+  $('trend-run').addEventListener('click', () => {
+    if (compare.view === 'compare') void runCompare();
+    else void run();
+  });
+  document.querySelectorAll<HTMLElement>('#trend-view button').forEach((b) => {
+    b.addEventListener('click', () => setView(b.dataset.view === 'compare' ? 'compare' : 'single'));
+  });
+  $('compare-count').addEventListener('change', buildCompareRows);
+  $('compare-close').addEventListener('click', () => { $('compare-result').hidden = true; });
+  $('compare-csv').addEventListener('click', downloadCompareCsv);
   $('trend-close').addEventListener('click', () => { $('trend-result').hidden = true; });
   $('trend-explain').addEventListener('click', () => {
     const el = $('trend-explain-text');
@@ -392,7 +519,10 @@ function bindEvents() {
     document.querySelectorAll<HTMLButtonElement>('#trend-chart-legend button').forEach((x) => x.classList.toggle('is-on', x.dataset.chart === mode));
     if (state.result) drawChart(state.result);
   });
-  window.addEventListener('resize', () => { if (state.result && !$('trend-result').hidden) drawChart(state.result); });
+  window.addEventListener('resize', () => {
+    if (state.result && !$('trend-result').hidden) drawChart(state.result);
+    if (compare.entries.length && !$('compare-result').hidden) drawCompareChart();
+  });
   const canvas = $<HTMLCanvasElement>('trend-chart');
   canvas.addEventListener('pointermove', (ev) => {
     if (!chartMeta) return;
@@ -482,6 +612,7 @@ async function probeAi() {
 }
 
 async function locate(q: string) {
+  setView('single');
   const status = $('trend-status');
   status.classList.remove('bad');
   status.textContent = `Finding ${q}…`;
@@ -500,10 +631,140 @@ async function locate(q: string) {
   }
 }
 
+async function runCompare() {
+  const start = Number($<HTMLSelectElement>('trend-start').value);
+  const end = Number($<HTMLSelectElement>('trend-end').value);
+  const status = $('trend-status');
+  if (end - start < 9) {
+    status.classList.add('bad');
+    status.textContent = 'Choose at least 10 years so every comparison has something to test.';
+    return;
+  }
+  buildCompareRows();
+  const count = compare.count;
+  const queries = compare.values.slice(0, count).map((v) => v.trim());
+  if (queries.some((q) => !q)) {
+    status.classList.add('bad');
+    status.textContent = `Fill in all ${count} places, or lower the number of comparisons.`;
+    return;
+  }
+  if (new Set(queries.map((q) => q.toLowerCase())).size < count) {
+    status.classList.add('bad');
+    status.textContent = 'Use distinct places: the same place twice would duplicate the same NASA grid.';
+    return;
+  }
+  const seq = ++compareSeq;
+  const variable = state.variable;
+  const info = variableById(variable);
+  compare.loading = true;
+  state.loading = true;
+  state.start = start;
+  state.end = end;
+  const btn = $<HTMLButtonElement>('trend-run');
+  btn.disabled = true;
+  status.classList.remove('bad');
+  status.textContent = `Resolving ${count} places…`;
+  try {
+    const resolved: ({ place: Place } | { error: string })[] = [];
+    for (let i = 0; i < count; i++) {
+      if (seq !== compareSeq) return;
+      status.textContent = `Locating ${queries[i]} (${i + 1}/${count})…`;
+      try {
+        resolved.push({ place: await resolveComparePlace(queries[i]) });
+      } catch (err) {
+        resolved.push({ error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    if (seq !== compareSeq) return;
+    status.textContent = info.source === 'water'
+      ? `Finding USGS or ECCC gauges for ${count} places…`
+      : `Pulling NASA POWER ${info.label.toLowerCase()} for ${count} places…`;
+    const settled = await Promise.allSettled(resolved.map((p) => 'error' in p
+      ? Promise.reject(new Error(p.error))
+      : fetchTrend(p.place, variable, start, end)));
+    if (seq !== compareSeq) return;
+    const entries: CompareEntry[] = resolved.map((p, i) => {
+      if ('error' in p) {
+        return { place: { name: queries[i], lat: Number.NaN, lon: Number.NaN, mode: 'point' }, error: p.error };
+      }
+      const outcome = settled[i];
+      if (outcome.status === 'rejected') {
+        return { place: p.place, error: outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason) };
+      }
+      return { place: p.place, result: outcome.value };
+    });
+    compare.entries = entries;
+    compare.start = start;
+    compare.end = end;
+    compare.variable = variable;
+    const ok = entries.filter((e) => e.result).length;
+    status.textContent = ok === count
+      ? `NASA POWER · ${count} places compared · ${info.label} · ${start}–${end}`
+      : `NASA POWER · ${ok} of ${count} places compared · ${start}–${end}`;
+    renderCompare(entries, start, end);
+  } catch (err) {
+    if (seq !== compareSeq) return;
+    status.classList.add('bad');
+    status.textContent = err instanceof Error ? err.message : String(err);
+  } finally {
+    if (seq === compareSeq) {
+      compare.loading = false;
+      state.loading = false;
+      btn.disabled = false;
+      updateRunLabel();
+    }
+  }
+}
+
+/** Use a preset when it matches; otherwise a typed name or coordinate goes through Nominatim. */
+async function resolveComparePlace(query: string): Promise<Place> {
+  const q = query.trim();
+  const preset = presetFor(q);
+  if (preset) return preset;
+  const point = parseLatLonText(q);
+  if (point) return { name: coordName(point.lat, point.lon), lat: point.lat, lon: point.lon, mode: 'point' };
+  // Nominatim asks for at most one request per second; comparisons resolve sequentially.
+  const wait = 900 - (Date.now() - lastGeocodeAt);
+  if (wait > 0) await new Promise<void>((resolve) => setTimeout(resolve, wait));
+  lastGeocodeAt = Date.now();
+  const res = await fetch('/api/geocode', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }),
+  });
+  const j = (await res.json().catch(() => null)) as { name?: string; lat?: number; lon?: number; error?: string } | null;
+  if (!res.ok || !j || j.error || !Number.isFinite(j.lat) || !Number.isFinite(j.lon)) {
+    throw new Error(j?.error || `Could not find “${q}”`);
+  }
+  return { name: j.name || q, lat: j.lat!, lon: j.lon!, mode: 'point' };
+}
+
+function presetFor(query: string): Place | null {
+  const q = query.trim().toLowerCase();
+  const exact = PRESETS.find((p) => p.name.toLowerCase() === q);
+  if (exact) return { name: exact.name, lat: exact.lat, lon: exact.lon, mode: exact.mode };
+  if (q.length >= 4) {
+    const hits = PRESETS.filter((p) => p.name.toLowerCase().includes(q));
+    if (hits.length === 1) {
+      const p = hits[0];
+      return { name: p.name, lat: p.lat, lon: p.lon, mode: p.mode };
+    }
+  }
+  return null;
+}
+
+function parseLatLonText(q: string): { lat: number; lon: number } | null {
+  const m = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/.exec(q);
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lon = Number(m[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { lat, lon };
+}
+
 async function run() {
   const start = Number($<HTMLSelectElement>('trend-start').value);
   const end = Number($<HTMLSelectElement>('trend-end').value);
   const status = $('trend-status');
+  $('compare-result').hidden = true;
   if (end - start < 9) {
     status.classList.add('bad');
     status.textContent = 'Choose at least 10 years so the trend test has something to work with.';
@@ -546,6 +807,7 @@ async function run() {
 
 function render(r: TrendResult) {
   $('trend-result').hidden = false;
+  $('compare-result').hidden = true;
   $('trend-result-place').textContent = r.place.name;
   const g = r.place.gauge;
   const mode = g
@@ -635,6 +897,293 @@ function render(r: TrendResult) {
   $('trend-year-read').textContent = String(state.year);
   applyGlobe();
   drawChart(r);
+}
+
+function renderCompare(entries: CompareEntry[], start: number, end: number) {
+  const info = variableById(compare.variable);
+  const ok = entries.filter((e) => e.result);
+  $('compare-result').hidden = false;
+  $('trend-result').hidden = true;
+  $('compare-kicker').textContent = 'NASA POWER / MERRA-2 · comparison';
+  $('compare-title').textContent = ok.length === entries.length
+    ? `${entries.length} places compared`
+    : `${ok.length} of ${entries.length} places compared`;
+  $('compare-sub').textContent = `${info.label} · ${start}–${end} · same variable, period and Mann–Kendall test`;
+  $('compare-summary').textContent = compareSummary(entries, start, end, info);
+
+  const limits = $('compare-limits');
+  limits.replaceChildren();
+  for (const line of compareLimits(entries, start, end, info)) {
+    const li = document.createElement('li');
+    li.textContent = line;
+    limits.appendChild(li);
+  }
+
+  const body = $('compare-table-body');
+  body.replaceChildren();
+  const ordered = [...entries].sort((a, b) => {
+    if (a.result?.stats && b.result?.stats) return b.result.stats.senPerDecade - a.result.stats.senPerDecade;
+    if (a.result?.stats) return -1;
+    if (b.result?.stats) return 1;
+    return 0;
+  });
+  const d = decimalsFor(info.id);
+  for (const e of ordered) {
+    const tr = document.createElement('tr');
+    const place = document.createElement('td');
+    const name = document.createElement('b');
+    name.textContent = e.place.name;
+    place.appendChild(name);
+    const detail = document.createElement('small');
+    const gauge = e.result?.place.gauge;
+    const sample = gauge
+      ? `${gauge.source} gauge ${gauge.id}`
+      : e.result
+        ? `${e.result.place.samples} NASA grid point${e.result.place.samples === 1 ? '' : 's'}`
+        : 'not resolved';
+    detail.textContent = Number.isFinite(e.place.lat)
+      ? `${Math.abs(e.place.lat).toFixed(2)}°${e.place.lat >= 0 ? 'N' : 'S'}, ${Math.abs(e.place.lon).toFixed(2)}°${e.place.lon >= 0 ? 'E' : 'W'} · ${sample}`
+      : sample;
+    place.appendChild(detail);
+    tr.appendChild(place);
+
+    const s = e.result?.stats;
+    if (!s) {
+      const failed = document.createElement('td');
+      failed.colSpan = 4;
+      failed.className = 'failed';
+      failed.textContent = e.error
+        ? e.error
+        : e.result
+          ? `Only ${e.result.series.annual.length} complete years; not enough for a trend test.`
+          : 'No result.';
+      tr.appendChild(failed);
+      body.appendChild(tr);
+      continue;
+    }
+
+    const rate = document.createElement('td');
+    rate.textContent = `${s.senPerDecade > 0 ? '+' : ''}${fmt(s.senPerDecade, d)} ${info.annualUnit}/dec`;
+    const p = document.createElement('td');
+    p.textContent = s.mk.p < 0.001 ? '<0.001' : fmt(s.mk.p, 3);
+    const sig = document.createElement('td');
+    sig.textContent = s.mk.significant ? 'Yes' : 'No';
+    sig.className = s.mk.significant ? 'sig-yes' : 'sig-no';
+    const years = document.createElement('td');
+    years.textContent = String(s.n);
+    tr.append(rate, p, sig, years);
+    body.appendChild(tr);
+  }
+
+  const source = ok.find((e) => e.result)?.result?.source;
+  $('compare-source').textContent = source
+    ? `Data: ${source.name} / ${source.dataset}, accessed ${new Date(source.accessed).toLocaleDateString()}. Each trend uses its own NASA POWER sample: one grid cell, or the mean of nine grid points for a region preset. ${source.licence}. Place names: OpenStreetMap Nominatim; no trend value comes from a map token or imagery.`
+    : 'No NASA POWER source was returned. Nothing is filled in.';
+  drawCompareChart();
+}
+
+function compareSummary(entries: CompareEntry[], start: number, end: number, info: ReturnType<typeof variableById>): string {
+  const ok = entries.filter((e) => e.result?.stats);
+  const failed = entries.filter((e) => !e.result?.stats);
+  if (!ok.length) {
+    const why = failed.map((e) => `${e.place.name}: ${e.error || 'too few complete years'}`).join('; ');
+    return `None of the ${entries.length} places returned a long enough NASA POWER record for a trend test between ${start} and ${end}. ${why}.`;
+  }
+  const sorted = [...ok].sort((a, b) => b.result!.stats!.senPerDecade - a.result!.stats!.senPerDecade);
+  const high = sorted[0];
+  const low = sorted[sorted.length - 1];
+  const d = decimalsFor(info.id);
+  const rate = (e: CompareEntry) => {
+    const s = e.result!.stats!;
+    return `${s.senPerDecade > 0 ? '+' : ''}${fmt(s.senPerDecade, d)} ${info.annualUnit}/decade`;
+  };
+  const pText = (e: CompareEntry) => {
+    const p = e.result!.stats!.mk.p;
+    return p < 0.001 ? '< 0.001' : p.toFixed(3);
+  };
+  const sig = ok.filter((e) => e.result!.stats!.mk.significant);
+  const weak = ok.filter((e) => !e.result!.stats!.mk.significant && e.result!.stats!.mk.p < 0.1);
+  const parts: string[] = [];
+  if (high === low) {
+    parts.push(`For ${info.label.toLowerCase()} over ${start}–${end}, ${high.place.name} has a Sen slope of ${rate(high)} (p = ${pText(high)}).`);
+  } else {
+    parts.push(`For ${info.label.toLowerCase()} over ${start}–${end}, ${high.place.name} has the highest Sen slope (${rate(high)}, p = ${pText(high)}) and ${low.place.name} the lowest (${rate(low)}, p = ${pText(low)}).`);
+  }
+  if (sig.length === ok.length) parts.push(`All ${ok.length} places show a statistically significant trend at the 95% level.`);
+  else if (!sig.length) parts.push(`None of the ${ok.length} places show a statistically significant trend at the 95% level.`);
+  else {
+    const noun = ok.length === 1 ? 'place' : 'places';
+    parts.push(`${sig.length} of ${ok.length} ${noun} ${sig.length === 1 ? 'shows' : 'show'} a statistically significant trend at the 95% level; ${ok.length - sig.length} ${ok.length - sig.length === 1 ? 'does' : 'do'} not.`);
+  }
+  if (weak.length) parts.push(`${weak.map((e) => e.place.name).join(', ')} ${weak.length === 1 ? 'shows' : 'show'} weak evidence only (p < 0.1).`);
+  if (failed.length) parts.push(`No trend could be tested for ${failed.map((e) => e.place.name).join(', ')}.`);
+  parts.push('These are rates of change, not absolute levels: a larger slope does not mean a hotter, wetter or worse place.');
+  return parts.join(' ');
+}
+
+function compareLimits(entries: CompareEntry[], start: number, end: number, info: ReturnType<typeof variableById>): string[] {
+  const ok = entries.filter((e) => e.result?.stats);
+  const years = ok.map((e) => e.result!.stats!.n);
+  const minN = years.length ? Math.min(...years) : 0;
+  const maxN = years.length ? Math.max(...years) : 0;
+  const samples = Array.from(new Set(ok.map((e) => e.result!.place.samples))).sort((a, b) => a - b);
+  const sampleText = !samples.length
+    ? 'one or more NASA grid points'
+    : samples.length === 1
+      ? `${samples[0]} grid point${samples[0] === 1 ? '' : 's'}`
+      : `${samples[0]}–${samples[samples.length - 1]} grid points`;
+  const limits = [
+    `NASA POWER is a coarse reanalysis grid (about 0.5° × 0.625°), not a local weather station. Each place is represented by ${sampleText}${info.source === 'water' ? ' or the nearest ground gauge' : ''}.`,
+    minN === maxN
+      ? `All tested places have ${minN} complete years. Missing months are dropped, never interpolated.`
+      : `Complete years differ across these places (${minN}–${maxN}). Missing months are dropped, never interpolated, so a place with fewer years has a less certain slope.`,
+    'Mann–Kendall assumes independent annual values. Serial correlation can make p-values look smaller than they should, and this test does not correct for it.',
+    `No multiple-comparison correction is applied. Testing ${ok.length} place${ok.length === 1 ? '' : 's'} at p < 0.05 raises the chance that one crosses the line by chance; treat the ranking as exploratory.`,
+    `A Sen slope is a fitted rate over ${start}–${end}, not a forecast or a current value. A difference between places does not prove why they differ.`,
+    'Place names and coordinates come from OpenStreetMap Nominatim. A geocoding error moves the NASA sample point; the trend itself is still NASA POWER.',
+  ];
+  if (info.source === 'water') {
+    limits.push('Streamflow comes from different USGS or ECCC gauges, each with its own record length, regulation and siting. A gauge is not a basin average.');
+  }
+  if (info.id === 'precip' || info.id === 'precip_snow' || info.id === 'evap' || info.id === 'frost' || info.id === 'hdd18') {
+    limits.push('This variable is annualised as a sum of monthly values, so one missing month removes the whole year.');
+  }
+  if (ok.some((e) => e.result!.place.mode === 'region')) {
+    limits.push('Region presets are fixed equal-area sample boxes, not political or hydrological boundaries.');
+  }
+  return limits;
+}
+
+function drawCompareChart() {
+  const canvas = $<HTMLCanvasElement>('compare-chart');
+  if (!canvas || $('compare-result').hidden) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const entries = compare.entries
+    .filter((e) => e.result?.stats)
+    .sort((a, b) => b.result!.stats!.senPerDecade - a.result!.stats!.senPerDecade);
+  const host = canvas.parentElement;
+  const cssW = Math.max(260, Math.floor(host?.clientWidth || 480));
+  const rowH = 36;
+  const cssH = Math.max(96, entries.length * rowH + 14);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.height = `${cssH}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  if (!entries.length) return;
+
+  const info = variableById(compare.variable);
+  const d = decimalsFor(info.id);
+  const values = entries.map((e) => e.result!.stats!.senPerDecade);
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const span = max - min || 1;
+  const labelW = Math.min(150, Math.max(88, cssW * 0.3));
+  const valueW = 74;
+  const barLeft = 4 + labelW;
+  const barRight = cssW - valueW;
+  const xOf = (v: number) => barLeft + ((v - min) / span) * Math.max(30, barRight - barLeft);
+  const zero = xOf(0);
+  const ink = '#120e0c';
+
+  ctx.strokeStyle = 'rgba(18,14,12,.22)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(zero, 2);
+  ctx.lineTo(zero, cssH - 4);
+  ctx.stroke();
+
+  entries.forEach((entry, i) => {
+    const s = entry.result!.stats!;
+    const y = 8 + i * rowH;
+    ctx.font = '10px "Monaspace Krypton", monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.86;
+    drawCompareLabel(ctx, entry.place.name, 4, y + 7, labelW - 10);
+    ctx.globalAlpha = 0.48;
+    ctx.font = '8.5px "Monaspace Krypton", monospace';
+    const p = s.mk.p < 0.001 ? '<0.001' : s.mk.p.toFixed(3);
+    ctx.fillText(`p = ${p}${s.mk.significant ? '' : ' · n.s.'}`, 4, y + 20);
+
+    const end = xOf(s.senPerDecade);
+    const left = Math.min(zero, end);
+    const width = Math.max(2, Math.abs(end - zero));
+    ctx.globalAlpha = s.mk.significant ? 0.95 : 0.32;
+    ctx.fillStyle = info.color;
+    ctx.fillRect(left, y + 2, width, 16);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(18,14,12,.28)';
+    ctx.strokeRect(left + 0.5, y + 2.5, Math.max(1, width - 1), 15);
+
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.85;
+    ctx.textAlign = 'right';
+    ctx.font = '10px "Monaspace Krypton", monospace';
+    ctx.fillText(`${s.senPerDecade > 0 ? '+' : ''}${fmt(s.senPerDecade, d)}`, cssW - 4, y + 9);
+    ctx.globalAlpha = 0.46;
+    ctx.font = '8px "Monaspace Krypton", monospace';
+    ctx.fillText(info.annualUnit, cssW - 4, y + 20);
+  });
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+}
+
+function drawCompareLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, max: number) {
+  if (ctx.measureText(text).width <= max || text.length < 2) {
+    ctx.fillText(text, x, y);
+    return;
+  }
+  let cut = text;
+  while (cut.length > 1 && ctx.measureText(`${cut}…`).width > max) cut = cut.slice(0, -1);
+  ctx.fillText(`${cut}…`, x, y);
+}
+
+function downloadCompareCsv() {
+  if (!compare.entries.length) return;
+  const info = variableById(compare.variable);
+  const esc = (v: unknown) => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [
+    '# ATLAS EARTH / NASA Space Apps 2026 · comparison',
+    `# variable,${esc(info.label)} (${info.source === 'water' ? 'ground gauge' : 'NASA POWER'})`,
+    `# period,${compare.start}-${compare.end}`,
+    '# source,NASA POWER / MERRA-2',
+    'place,latitude,longitude,mode,samples,gauge,sen_slope_per_decade,unit,p_value,significant,years,period_mean,change_over_period,error',
+  ];
+  for (const e of compare.entries) {
+    const s = e.result?.stats;
+    lines.push([
+      esc(e.place.name),
+      Number.isFinite(e.place.lat) ? e.place.lat.toFixed(4) : '',
+      Number.isFinite(e.place.lon) ? e.place.lon.toFixed(4) : '',
+      e.place.mode,
+      e.result?.place.samples ?? '',
+      esc(e.result?.place.gauge?.id || ''),
+      s ? s.senPerDecade.toFixed(6) : '',
+      esc(info.annualUnit),
+      s ? s.mk.p.toFixed(6) : '',
+      s ? (s.mk.significant ? 'yes' : 'no') : '',
+      s ? s.n : '',
+      s ? s.mean.toFixed(6) : '',
+      s ? s.changeAbs.toFixed(6) : '',
+      esc(e.error || ''),
+    ].join(','));
+  }
+  const blob = new Blob([`${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `atlas-earth-compare-${info.id}-${compare.start}-${compare.end}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function powerApiUrl(r: TrendResult) {

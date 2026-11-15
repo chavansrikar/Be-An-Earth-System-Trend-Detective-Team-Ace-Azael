@@ -51,16 +51,19 @@ No keyless NASA point API for river discharge was found. Streamflow therefore co
 - Scrub NASA imagery by year and month; switch between Blue Marble and MODIS Terra satellite.
 - Download the annual + monthly series as CSV, open the exact POWER API request, or open the POWER Data Access Viewer. The viewer itself blocks embedding (`X-Frame-Options: DENY`), so ATLAS links to it rather than pretending to host it.
 - Use **Ask ATLAS** for a plain-language explanation. It is gated on a live model, keyed or keyless.
+- Switch to **Compare places** to run the same NASA variable, period and trend test across 2–6 locations. The result shows a slope chart, a table, a deterministic brief summary, a limits summary and a comparison CSV. Presets, typed place names and `lat, lon` are accepted; **Compare with other places** in Places seeds it with the current place.
 
 ### 2. Globe
 
 A full-screen planet with almost no interface: the third tab after Places. It is the place to look at the Earth rather than read a chart.
 
-- **With a map token** it streams the friend's existing photoreal renderer: Google Photorealistic 3D Tiles through Cesium ion asset `2275207` (`CESIUM_ION_TOKEN`) or the Google Map Tiles API (`GOOGLE_MAPS_KEY`). Drag to orbit, scroll to zoom; the whole-Earth opening shot waits for detailed tiles before settling.
+- **Two renderers, one switch.** **Photoreal 3D** streams the friend's existing Google Photorealistic 3D Tiles renderer through Cesium ion asset `2275207` (`CESIUM_ION_TOKEN`) or the Google Map Tiles API (`GOOGLE_MAPS_KEY`). **NASA Blue Marble** is the keyless Three.js globe. The switch makes the difference between a photoreal map and NASA's own imagery visible in one click.
+- **Feature parity.** Search, Ask the globe (when a keyed model is live), Back to orbit, Details, Trends, Spin, Reset and the renderer switch work in both views. **City lights** and **Live clouds** are NASA layers: if you click them from photoreal, the app switches to the NASA renderer and applies the layer.
+- **Photoreal:** drag to orbit, scroll to zoom; the whole-Earth opening shot waits for detailed tiles before settling. The whole planet spins **eastward**; Spin stops and restarts it.
 - **Fly to any place**: type a name or `lat, lon` in the panel. ATLAS geocodes it (OpenStreetMap Nominatim), reads the place type, pulls back to orbit, traverses the shortest arc, and dives to a fitting depth: a country is framed at 3,000 km, a state at 1,600 km, a county at 250 km, a city at 6.5 km, a park at 60 km, and a landmark or building at about 420–450 m. Large areas stay north-up and top-down; cities and landmarks tilt to the 3D approach angle. **Back to orbit** returns to the planet.
 - **Ask the globe** (when a keyed model is live): the same panel has an ask box. The agent answers in the panel and its `fly_to` tool is routed to the Globe flight, so “take me to the Eiffel Tower” lands at the tower rather than switching to Places. The box stays hidden until `/api/status` reports a keyed provider, so it never promises an agent that is not running.
 - **Without a token** it uses the NASA globe, not a wireframe: Blue Marble shaded relief + bathymetry, a bundled 2048 px first paint that upgrades to a 4096 px NASA GIBS mosaic, VIIRS city lights, a live subsolar-point terminator, atmosphere and stars. Search still works and flies the NASA globe to the place.
-- **Spin**, **City lights**, **Live clouds** and **Reset** are the fallback controls. *Live clouds* lifts the day's near-white MODIS Terra clouds onto the seamless Blue Marble base, so the daily scene adds weather without its black swath gaps.
+- **Spin**, **City lights**, **Live clouds** and **Reset** are present in both views. *Live clouds* lifts the day's near-white MODIS Terra clouds onto the seamless Blue Marble base, so the daily scene adds weather without its black swath gaps.
 - Tap the planet to mark a coordinate; **Open this point in Trends** carries it into the full 30-year analysis. After a photoreal landing, **Details** opens the same place in Places with the NASA science card, and **Trends** opens its 30-year record.
 - The panel's **Enable photoreal 3D** disclosure explains the free token steps without sending anyone to a dead end.
 
@@ -225,6 +228,7 @@ src/style.css         responsive layout, fallback, Globe and card styles
 public/earth/         local 2048 px Blue Marble + VIIRS city lights (instant first paint)
 NASA_RESOURCES.md     every endpoint, field, licence and limitation
 BUILD_LOG.md          what was actually built, tested and deployed
+PRESENTATION.md       complete presentation guide: features, data, demo script, Q&A
 ```
 
 ## Verified examples

@@ -164,12 +164,27 @@ New-variable checks:
 - `GEMINI_API_KEY` is set for Production, Preview and Development. It was pasted into chat during setup; rotate it in AI Studio and update Vercel when convenient.
 - Local verification also covered a mocked agent `fly_to` to the Eiffel Tower, the NASA fallback search for Paris, the 390×844 mobile Globe, and Back to orbit from both renderers.
 
+## Comparison, globe parity and presentation docs
+
+Added after commit `9336359` and verified locally before the next production deploy:
+
+- **Comparison analysis in Trends.** A **Single place / Compare places** switch reuses the same variable and period filters for **2–6 locations**. Places can be curated presets, typed names (Nominatim) or `lat, lon`. Every place gets the same annualisation, Sen’s slope and tie-corrected Mann–Kendall test. The result is a horizontal slope chart, table, deterministic brief summary, dynamic limits and a comparison CSV. Places has **Compare with other places** to seed the view with the current place.
+- **Verified comparison:** Amazon Basin **+0.32 °C/decade, p = 0.007**; Sahel **−0.10 °C/decade, p = 0.412**; 1 of 2 significant; seven limits; no console or page errors. A second run used Fraser Valley, BC (+0.30, p = 0.038) and Hyderabad (−0.02, p = 0.943). Tested at 1440×900 and 390×844; table rows no longer clipped.
+- **Data-source labels on every tab:** Trends · NASA POWER; Places · Google 3D Tiles · Cesium; Globe · NASA GIBS · Cesium; Library · ATLAS 3D; Scan · Gemini vision; Build · Gemini · OSM.
+- **Globe renderer switch.** **Photoreal 3D / NASA Blue Marble** buttons now switch the Globe tab between the friend’s Cesium/Google renderer and the NASA Three.js globe. Search, Ask, Back to orbit, Details, Trends, Spin, City lights, Live clouds and Reset are present in both views. City lights and Live clouds switch to NASA automatically because they are NASA layers.
+- **Spin direction fixed.** The shared frame loop now subtracts longitude (`globe.lon - dt * 2.2`) so the photoreal planet rotates eastward. Verified by sampling `atlas.globe.lon`: it decreases while spin is on. Drag pauses; Spin toggles; Reset restores.
+- **Typed landmarks keep their curated depth.** Searching **Eiffel Tower** in the Globe panel now lands at **720 m** in both renderers (NASA view reports “Eiffel Tower · 720 m view”); **Paris** still geocodes and lands at a 7 km city view.
+- **Mobile heading fixed.** The trend heading is wrapped in a sticky `.trend-head` on phones, so scrolling the panel no longer clips “CHANGING HERE?” under the ATLAS wordmark. Verified at 474×1008 with `scrollTop = 55`: the eyebrow and h1 stay fully visible below the bar.
+- **`PRESENTATION.md`** added: complete feature tour, NASA and supplementary data tables, architecture, statistics, comparison, globe depth table, AI safety, API reference, slide outline, six-minute demo script, verification record, limitations, run/deploy commands and judge Q&A.
+- **Checks:** `npx tsc --noEmit`, `npx tsc -p api/tsconfig.json --noEmit`, `npm run build` pass. Browser checks at 1440×900, 390×844 and 474×1008 show no console or page errors.
+
 ## Known limitations
 
 - The NASA, USGS, ECCC and geocoding endpoints are free and keyless but can be rate-limited or briefly unavailable. Photoreal tiles use a Cesium ion token on its free Community plan; the Globe's LLM box needs a free keyed model provider.
 - NASA POWER is reanalysis on a coarse grid, not a local weather station.
 - Streamflow is a single ground gauge, not a basin average, and can be affected by dams, diversions, ice and channel change.
 - The Mann–Kendall p-value assumes independent annual values; serial correlation is not corrected.
+- Comparison mode applies no multiple-comparison correction. Testing 2–6 places at p < 0.05 raises the chance that one crosses the line by chance; the ranking is exploratory and the limits panel says so.
 - GIBS overlays are monthly composites; the satellite base is a daily true-colour mosaic, not a live photograph.
 - Only temperature, precipitation, root-zone soil moisture and wind have a verified matching GIBS monthly layer. The other 26 POWER parameters and streamflow show no globe overlay rather than a misleading one.
 - The NASA POWER Data Access Viewer blocks embedding (`X-Frame-Options: DENY`), so ATLAS links to it and reproduces its parameter/export workflow instead of iframing it.
