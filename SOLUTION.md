@@ -38,6 +38,34 @@ exactly those four:
 3. **A picture is not an explanation.** A map with a red dot says nothing about significance.
 4. **Silent failure is the worst kind.** If a gauge is missing, the demo invents a value.
 
+### 1.3 Requirement-by-requirement compliance
+
+**Objectives (the four required elements):**
+
+| Objective | How ATLAS EARTH meets it | Evidence | Status |
+|---|---|---|---|
+| **1. Identify Earth science variables of interest that can be investigated for potential trends** | 30 NASA POWER variables in four groups, plus USGS/ECCC streamflow. The **Scan all variables** view runs *every* variable at a place, ranks them by Sen's slope and marks which are significant after a Benjamini–Hochberg false-discovery-rate correction | 30 variables verified against live POWER requests; the sweep returns a ranked list with q-values | **Met** |
+| **2. Acquire the data variables for a particular region** | Curated regional presets, free-text geocoding, `lat, lon`, tapping the globe, a nine-sample regional mode, and **Map the change**, which analyses every POWER grid cell in a box around the place | Region presets return a labelled “mean of 9 NASA POWER grid points”; the map returns per-cell slope, p and q | **Met** |
+| **3. Generate and visualize a time series over a long enough period** | Monthly POWER series from 1981, any 10–45 year window, annual *and* monthly charts with the fitted Sen line, plus a NASA GIBS imagery scrubber (year/month) | Default record: 1996–2025, 30 complete years, 9 grid points | **Met** |
+| **4. Statistical analysis: rate of change and significance** (t-test / Mann–Kendall / confidence intervals) | Sen's slope (rate), tie-corrected Mann–Kendall (p), Sen 95% interval (Gilbert 1987) and OLS 95% interval + R², **Hamed–Rao autocorrelation-corrected MK**, **Pettitt change point**, and **BH false discovery rate** across compared places | Result card: +0.32 °C/decade, MK p = 0.007, Sen 95% interval 0.15–0.59 °C/decade, autocorrelation-corrected p, change point | **Met** |
+
+**Considerations (optional, but addressed):**
+
+| Consideration | How ATLAS EARTH addresses it |
+|---|---|
+| **Audience: students and the public; “simple definitions of the variables would help”** | Every variable has a plain-language definition shown under the picker and in the result card (“Air temperature — Temperature at 2 m. The classic warming signal.”), with its unit and its real source. The deterministic summary is written in plain English and never over-claims. |
+| **“Users could respond to a short series of questions… allow searching of related data variables”** | **Ask ATLAS** takes a question in plain language, sees the screen (place, variable, live layers, trend facts) and can act on it. The **Scan all variables** view answers “what is changing here?” without the user having to know which variable to ask for. |
+| **“Provide a couple of demonstration examples that the user could watch”** | Three **case files** run as guided demonstrations: *Case 1 — what* (Hyderabad is getting dimmer), *Case 2 — where* (one region, two directions), *Case 3 — is it real?* (the Amazon heats and dries). The app also opens on a finished Amazon Basin result. |
+| **SI: “identify data with the potential to show trends in particular areas… characteristics of a region such as a desert, rain forest, tidal estuary, or the atmosphere above a large city”** | The variable scan ranks every NASA variable at the chosen place and keeps only the significant ones; the trend map does the same across a region, so a desert, a rainforest, an estuary or a city all get their own answer without prior knowledge. |
+| **“Finding a trend is interesting even if it doesn't reach significance… a longer period may be all it needs”** | Any 10–45 year window can be chosen, and the result card says so explicitly when a trend is not significant: *“This trend is not significant at 95% for this window — but it is not ‘no trend’ either. Try a longer period, or read it as ‘no change detected’.”* |
+| **Temporal resolutions (hourly, 3-hourly, daily, monthly)** | Monthly POWER for the gridded variables (the brief's easiest tier) and **daily** USGS discharge reduced to annual means, so both resolutions in the brief are genuinely used. |
+| **Hydrological data tools (CUAHSI)** | Streamflow comes from the official USGS and ECCC gauge networks that CUAHSI points to, with the gauge ID, name, distance, licence and data age on screen. |
+| **“Trends can be non-linear… detecting and analyzing linear trends would be a great start”** | Linear trends are what we detect and we say so; the monthly series shows the seasonal cycle; the **Pettitt change point** flags a structural break that a single straight line would hide. |
+| **“Changes can trend one way in one region and the opposite way in another, even when the same process drives both”** | This is the heart of the comparison view and of the trend map: the same variable, the same test, several places, and the places can disagree — which is exactly what the brief says to expect. Case file 2 demonstrates it. |
+
+**Summary: every required objective is met, and each optional consideration in the brief is
+addressed in the product.**
+
 ---
 
 ## 2. The problem we solve
@@ -277,8 +305,10 @@ cleared on request.
 
 - NASA POWER is a ~0.5° × 0.625° **reanalysis grid**, not a thermometer at the coordinate.
 - A region preset is the mean of nine grid points, **not** an area-weighted basin average.
-- Mann–Kendall assumes independent annual values; serial correlation is not corrected.
-- **No multiple-comparison correction** in comparison mode — the ranking is exploratory.
+- Mann–Kendall assumes independent annual values; the **Hamed–Rao autocorrelation-corrected
+  p-value is reported next to it** so serial correlation is visible rather than hidden.
+- The comparison reports a **Benjamini–Hochberg q-value** across the compared places, so a
+  group of tests is corrected; the ranking still describes rates, not levels.
 - Streamflow is one gauge, affected by dams, diversions, ice and channel change.
 - GIBS overlays are monthly composites; the satellite base is a daily mosaic, not a photograph.
 - 26 of the 30 POWER variables have no verified matching GIBS layer, so no overlay is shown

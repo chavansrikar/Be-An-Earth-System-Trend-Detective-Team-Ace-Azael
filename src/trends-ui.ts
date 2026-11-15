@@ -42,6 +42,8 @@ interface ChartPoint { x: number; y: number; label: string; value: string }
 let chartMeta: { points: ChartPoint[]; left: number; right: number } | null = null;
 
 interface CompareEntry { place: Place; result?: TrendResult; error?: string }
+/** Benjamini–Hochberg q-values for the places in the current comparison. */
+let compareQ = new Map<CompareEntry, number>();
 type TrendView = 'single' | 'compare' | 'map' | 'sweep';
 const compare = {
   view: 'single' as TrendView,
@@ -545,8 +547,35 @@ export function openCompare(seed?: Place) {
   }
 }
 
+/** Benjamini–Hochberg: the false discovery rate across the places being compared. */
+function bhQ(pvalues: number[]): number[] {
+  const n = pvalues.length;
+  if (!n) return [];
+  const order = pvalues.map((p, i) => ({ p, i })).sort((a, b) => a.p - b.p);
+  const q = new Array(n).fill(1);
+  let prev = 1;
+  for (let k = n - 1; k >= 0; k--) {
+    const val = Math.min(1, (order[k].p * n) / (k + 1));
+    prev = Math.min(prev, val);
+    q[order[k].i] = prev;
+  }
+  return q;
+}
+
+/** NASA's brief asks for simple definitions: show what the chosen variable actually is. */
+function paintVariableHelp() {
+  const el = $('trend-var-help');
+  if (!el) return;
+  const v = variableById(state.variable);
+  const src = v.source === 'water'
+    ? 'measured at the nearest active USGS or ECCC river gauge'
+    : 'NASA POWER / MERRA-2 monthly, ' + v.unit;
+  el.textContent = `${v.label} — ${v.description} Measured as ${src}.`;
+}
+
 function paintActive() {
   paintGroups();
+  paintVariableHelp();
   document.querySelectorAll<HTMLElement>('#trend-vars .trend-var').forEach((b) => {
     const on = b.dataset.id === state.variable;
     b.classList.toggle('is-on', on);
@@ -941,6 +970,17 @@ function render(r: TrendResult) {
   badge.textContent = strength.label;
   badge.className = `trend-badge ${strength.tone}`;
   $('trend-summary').textContent = explain(r);
+  const note = $('trend-var-note');
+  if (note) {
+    const bits = [`${r.variable.label}: ${r.variable.description}`];
+    if (s && !s.mk.significant) {
+      // The brief's own hint: a trend that is not significant yet may become significant
+      // over a longer window, and the trend itself is still worth knowing.
+      bits.push('This trend is not significant at 95% for this window — but it is not “no trend” either. Try a longer period, or read it as “no change detected”.');
+    }
+    note.textContent = bits.join(' ');
+    note.hidden = !bits.length;
+  }
   $('trend-explain-text').textContent = explainDetails(r);
   $('trend-explain-text').hidden = true;
   $('trend-explain').textContent = 'Explain the test';
@@ -1028,6 +1068,12 @@ function renderCompare(entries: CompareEntry[], start: number, end: number) {
     ? `${entries.length} places compared`
     : `${ok.length} of ${entries.length} places compared`;
   $('compare-sub').textContent = `${info.label} · ${start}–${end} · same variable, period and Mann–Kendall test`;
+  // False discovery rate across the places being compared (Benjamini–Hochberg).
+  const withP = entries.filter((e) => e.result?.stats);
+  const qList = bhQ(withP.map((e) => e.result!.stats!.mk.p));
+  compareQ = new Map<CompareEntry, number>();
+  withP.forEach((e, i) => compareQ.set(e, qList[i]));
+  (window as unknown as { atlasCompareQ?: number[] }).atlasCompareQ = qList;
   $('compare-summary').textContent = compareSummary(entries, start, end, info);
 
   const limits = $('compare-limits');
@@ -1085,12 +1131,16 @@ function renderCompare(entries: CompareEntry[], start: number, end: number) {
     rate.textContent = `${s.senPerDecade > 0 ? '+' : ''}${fmt(s.senPerDecade, d)} ${info.annualUnit}/dec`;
     const p = document.createElement('td');
     p.textContent = s.mk.p < 0.001 ? '<0.001' : fmt(s.mk.p, 3);
+    const q = document.createElement('td');
+    const qv = compareQ.get(e) ?? 1;
+    q.textContent = qv < 0.001 ? '<0.001' : fmt(qv, 3);
+    q.title = 'Benjamini–Hochberg false discovery rate across the compared places';
     const sig = document.createElement('td');
     sig.textContent = s.mk.significant ? 'Yes' : 'No';
     sig.className = s.mk.significant ? 'sig-yes' : 'sig-no';
     const years = document.createElement('td');
     years.textContent = String(s.n);
-    tr.append(rate, p, sig, years);
+    tr.append(rate, p, q, sig, years);
     body.appendChild(tr);
   }
 
@@ -1128,6 +1178,10 @@ function compareSummary(entries: CompareEntry[], start: number, end: number, inf
   } else {
     parts.push(`For ${info.label.toLowerCase()} over ${start}–${end}, ${high.place.name} has the highest Sen slope (${rate(high)}, p = ${pText(high)}) and ${low.place.name} the lowest (${rate(low)}, p = ${pText(low)}).`);
   }
+  const qOk = ok.filter((e) => (compareQ.get(e) ?? 1) < 0.05);
+  if (qOk.length !== sig.length) {
+    parts.push(`After the false discovery rate correction across the compared places, ${qOk.length} of ${ok.length} still hold at q < 0.05.`);
+  }
   if (sig.length === ok.length) parts.push(`All ${ok.length} places show a statistically significant trend at the 95% level.`);
   else if (!sig.length) parts.push(`None of the ${ok.length} places show a statistically significant trend at the 95% level.`);
   else {
@@ -1157,7 +1211,7 @@ function compareLimits(entries: CompareEntry[], start: number, end: number, info
       ? `All tested places have ${minN} complete years. Missing months are dropped, never interpolated.`
       : `Complete years differ across these places (${minN}–${maxN}). Missing months are dropped, never interpolated, so a place with fewer years has a less certain slope.`,
     'Mann–Kendall assumes independent annual values. Serial correlation can make p-values look smaller than they should, and this test does not correct for it.',
-    `No multiple-comparison correction is applied. Testing ${ok.length} place${ok.length === 1 ? '' : 's'} at p < 0.05 raises the chance that one crosses the line by chance; treat the ranking as exploratory.`,
+    `The q column is the Benjamini–Hochberg false discovery rate across the ${ok.length} compared place${ok.length === 1 ? '' : 's'}: it controls the expected share of false positives, so a q below 0.05 survives looking at several places at once. Read p for the single place and q for the group.`,
     `A Sen slope is a fitted rate over ${start}–${end}, not a forecast or a current value. A difference between places does not prove why they differ.`,
     'Place names and coordinates come from OpenStreetMap Nominatim. A geocoding error moves the NASA sample point; the trend itself is still NASA POWER.',
   ];

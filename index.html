@@ -98,6 +98,7 @@
         <span class="trend-field-label">Variable</span>
         <div class="trend-groups" id="trend-groups" role="group" aria-label="Variable group"></div>
         <div class="trend-vars" id="trend-vars" role="group" aria-label="Earth variable"></div>
+        <p class="trend-var-help" id="trend-var-help"></p>
       </div>
       <div class="trend-field">
         <span class="trend-field-label">Period</span>
@@ -161,6 +162,7 @@
         <span class="trend-badge" id="trend-badge">—</span>
       </div>
       <p class="trend-summary" id="trend-summary"></p>
+      <p class="trend-var-note" id="trend-var-note"></p>
       <div class="trend-chart-wrap">
         <canvas id="trend-chart" height="190"></canvas>
         <div class="trend-chart-tip" id="trend-tip" hidden></div>
@@ -199,7 +201,7 @@
       </div>
       <div class="compare-table-wrap">
         <table class="compare-table">
-          <thead><tr><th>Place</th><th>Slope</th><th>p</th><th>Sig.</th><th>Years</th></tr></thead>
+          <thead><tr><th>Place</th><th>Slope</th><th>p</th><th>q</th><th>Sig.</th><th>Years</th></tr></thead>
           <tbody id="compare-table-body"></tbody>
         </table>
       </div>
