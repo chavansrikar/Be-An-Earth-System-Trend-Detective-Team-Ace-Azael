@@ -8,7 +8,7 @@ import { variableById, decimalsFor, fmt, type Place, type VariableId } from './t
  *  - Map the change: "Where is it changing?" One trend test per NASA POWER grid cell, drawn on a
  *    NASA Blue Marble map, with dots only where the trend survives the correction.
  *
- * Every number comes from /api/sweep and /api/trendmap. Nothing here computes statistics.
+ * Every number comes from /api/trends?view=sweep and ?view=map. Nothing here computes statistics.
  */
 
 export interface SweepItem {
@@ -107,7 +107,7 @@ export async function runSweep(place: Place, start: number, end: number, status:
   status.textContent = `Pulling every NASA POWER variable for ${place.name}…`;
   const q = new URLSearchParams({ lat: place.lat.toFixed(4), lon: place.lon.toFixed(4), start: String(start), end: String(end), name: place.name });
   try {
-    const data = await getJson<SweepResult>(`/api/sweep?${q}`);
+    const data = await getJson<SweepResult>(`/api/trends?view=sweep&${q}`);
     if (mine !== seq) return;
     sweepData = data;
     status.textContent = `NASA POWER · ${data.tested} variables tested at ${data.place.name} · ${start}–${end}`;
@@ -131,7 +131,7 @@ export async function runMap(place: Place, variable: VariableId, start: number, 
   status.textContent = `Testing every NASA POWER grid cell around ${place.name} for ${info.label.toLowerCase()}…`;
   const q = new URLSearchParams({ variable, lat: place.lat.toFixed(4), lon: place.lon.toFixed(4), span: String(span), start: String(start), end: String(end), name: place.name });
   try {
-    const data = await getJson<TrendMapResult>(`/api/trendmap?${q}`);
+    const data = await getJson<TrendMapResult>(`/api/trends?view=map&${q}`);
     if (mine !== seq) return;
     mapData = data;
     status.textContent = `NASA POWER · ${data.summary.cells} grid cells · ${info.label} · ${start}–${end}`;
