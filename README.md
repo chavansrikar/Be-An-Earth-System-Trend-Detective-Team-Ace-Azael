@@ -41,6 +41,23 @@ The default view is **Amazon Basin · Air temperature · 1996–2025**: **+0.32 
 
 No keyless NASA point API for river discharge was found. Streamflow therefore comes from ground gauges, and the app says so on the card, in the result and in `NASA_RESOURCES.md`. It never presents gauge data as a NASA grid.
 
+## The detective's four questions
+
+The challenge asks a tool to say **what** is changing, **where**, **how much**, and whether it is **significant**. ATLAS answers each one with its own view:
+
+| Question | View | What it does |
+|---|---|---|
+| What is changing? | **Scan all variables** | Tests all 25 usable NASA POWER variables at one place in two API calls, corrects for running that many tests (Benjamini–Hochberg FDR), and ranks what survives. Click a row to open its record. |
+| Where is it changing? | **Map the change** | Runs the trend test in every NASA POWER grid cell (about 0.5° × 0.625°) of a 4°–10° box via the POWER regional endpoint, drawn on NASA Blue Marble with coastlines. Colour is Sen's slope; a dot means the trend survives FDR correction across all cells. Shows when one variable rises in one part of a region and falls in another. |
+| How much? | **Single place** | Sen's slope per decade with its non-parametric 95% interval (Gilbert 1987), fitted change and per cent of the mean. |
+| Is it real? | **Single place** | Mann–Kendall p, the same test corrected for autocorrelation (Hamed & Rao 1998), and the Pettitt change-point year. |
+
+**Case files** run three guided demonstrations, as the challenge suggests:
+
+1. *Hyderabad is getting dimmer* — the variable scan finds that surface solar energy, clear-sky solar energy, PAR and albedo all fall significantly over 1996–2025, after correcting for 25 tests.
+2. *One region, two directions* — relative humidity in a 10° box around Telangana rises significantly in 78 cells and falls significantly in 21.
+3. *The Amazon heats and dries* — +0.32 °C/decade (Sen 95% interval 0.14–0.55), p = 0.007, still significant after the autocorrelation correction, with a change point around 2014.
+
 ## Four ways to use it
 
 ### 1. Trend Detective (default)
@@ -103,6 +120,11 @@ Implemented deterministically in `api/_trends.ts`:
 - **Annualization** — day-weighted monthly mean, or a monthly sum for precipitation, snowfall, evapotranspiration, frost days and heating degree days. A year needs all 12 months.
 - **Missing data** — POWER `-999` values are dropped, never interpolated. The count of complete years is shown.
 - **Regional mode** — the mean of nine POWER grid points, explicitly labelled as a sample mean, not an area-weighted basin average.
+- **Sen's 95% interval** — non-parametric, Gilbert (1987), identical to `scipy.stats.theilslopes` (`api/_stats.ts`).
+- **Autocorrelation** — Hamed & Rao (1998) variance correction on the detrended ranks, identical to `pymannkendall.hamed_rao_modification_test`.
+- **Change point** — Pettitt (1979) with its approximate p-value.
+- **Many tests at once** — the scan and the map apply Benjamini–Hochberg FDR to the larger of the classic and autocorrelation-corrected p-values, so a result has to pass both before it counts.
+- **Verification** — every statistic was checked against pymannkendall 1.4 and SciPy on real NASA POWER series and random series; all agree to 1e-6.
 
 The language model never sees the raw series and is never asked to compute. It receives a small JSON fact sheet and must not invent a number, cause, source or forecast. If it is offline, the deterministic explanation remains.
 
@@ -206,6 +228,8 @@ work; the ASK box stays hidden rather than failing at submit time.
 | Route | Purpose |
 |---|---|
 | `GET /api/trends?variable=t2m&lat=-3.5&lon=-62.5&start=1996&end=2025&mode=region&name=Amazon%20Basin` | NASA POWER series + Sen / Mann–Kendall / OLS |
+| `GET /api/trends?view=sweep&lat=17.385&lon=78.487&start=1996&end=2025&name=Hyderabad` | Every NASA POWER variable at one place, FDR-corrected and ranked |
+| `GET /api/trends?view=map&variable=humidity&lat=17.9&lon=79.6&span=10&start=1996&end=2025` | Trend test in every NASA POWER grid cell of a 2°–10° box |
 | `GET /api/trends?variable=streamflow&lat=49.2&lon=-122.7...` | Nearest active USGS or ECCC gauge and its annual record |
 | `POST /api/trend-explain` | Two-sentence explanation from pre-computed statistics |
 | `POST /api/ask` | ATLAS agent: answer plus scene tools (`fly_to`, `focus_part`, layers, feeds) |
@@ -221,6 +245,9 @@ Trend responses are cached for 12 hours server-side and at the CDN. Failures are
 
 ```text
 api/_trends.ts        NASA POWER, USGS/ECCC, annualization, Sen, Mann–Kendall, OLS
+api/_stats.ts         Sen interval, Hamed & Rao, Pettitt, Benjamini–Hochberg (verified vs SciPy/pymannkendall)
+api/_explore.ts       variable scan and grid trend map, served by /api/trends?view=sweep|map
+src/explore-ui.ts     Scan all variables and Map the change views
 api/trends.ts         validated GET endpoint + cache headers
 api/trend-explain.ts  model explanation from computed facts
 api/_nebius.ts        keyed providers + keyless open-model fallback
@@ -256,7 +283,8 @@ PRESENTATION.md       complete presentation guide: features, data, demo script, 
 
 - NASA POWER is coarse-grid reanalysis, not a local weather station.
 - Streamflow is one ground gauge, not a basin average; dams, diversions, ice and channel change can affect it.
-- Mann–Kendall assumes independent annual values; serial correlation is not corrected.
+- The Hamed & Rao correction handles year-to-year autocorrelation; it does not remove non-linear trends or cycles longer than a year.
+- The map and the scan use single NASA POWER grid cells, not stations; the regional endpoint accepts boxes from 2° to 10°.
 - GIBS overlays are monthly composites; the satellite base is a daily true-colour mosaic, not a live photograph.
 - Daily MODIS Terra has black swath gaps. Trends keeps the full daily scene and labels it; the Globe tab's *Live clouds* mode lifts only near-white cloud/snow pixels onto the seamless Blue Marble base, so it is a cloud composite, not the full daily surface.
 - No faithful GIBS layer was verified for 26 of the 30 POWER parameters or for streamflow, so no overlay is shown for them.

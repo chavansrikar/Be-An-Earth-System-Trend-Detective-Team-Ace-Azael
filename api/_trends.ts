@@ -1,4 +1,5 @@
 import { HttpError } from './_nebius.js';
+import { mannKendall, senSlope, hamedRao, pettitt, type ModifiedMannKendall, type ChangePoint } from './_stats.js';
 
 /**
  * Earth-system trend detective: monthly time series from NASA POWER (MERRA-2), reduced to
@@ -262,6 +263,14 @@ export interface TrendStats {
   olsCi95: [number, number];
   olsR2: number;
   mk: { s: number; z: number; p: number; tau: number; significant: boolean };
+  /** Sen's slope 95% interval per year (Gilbert 1987), non-parametric. */
+  senCi95: [number, number];
+  /** Hamed & Rao (1998) Mann–Kendall corrected for serial correlation. */
+  mkModified: ModifiedMannKendall;
+  /** Significant under both the plain and the autocorrelation-corrected test. */
+  robust: boolean;
+  /** Pettitt (1979) most likely change point. */
+  changePoint: ChangePoint | null;
   changeAbs: number;
   changePct: number | null;
   direction: 'up' | 'down' | 'flat';
@@ -415,29 +424,15 @@ export function analyse(annual: AnnualPoint[]): TrendStats | null {
   const meanX = x.reduce((s, v) => s + v, 0) / n;
   const meanY = y.reduce((s, v) => s + v, 0) / n;
 
-  // Sen's slope: the median of all pairwise slopes (robust to outliers).
-  const slopes: number[] = [];
-  for (let i = 0; i < n - 1; i++) {
-    for (let j = i + 1; j < n; j++) {
-      if (x[j] !== x[i]) slopes.push((y[j] - y[i]) / (x[j] - x[i]));
-    }
-  }
-  slopes.sort((a, b) => a - b);
-  const mid = slopes.length >> 1;
-  const senPerYear = slopes.length % 2 ? slopes[mid] : (slopes[mid - 1] + slopes[mid]) / 2;
+  // Sen's slope (median pairwise slope) with its non-parametric 95% interval.
+  const sen = senSlope(x, y);
+  const senPerYear = sen.slope;
 
-  // Mann-Kendall S with the usual tie correction.
-  let s = 0;
-  for (let i = 0; i < n - 1; i++) {
-    for (let j = i + 1; j < n; j++) s += Math.sign(y[j] - y[i]);
-  }
-  const counts = new Map<number, number>();
-  for (const v of y) counts.set(v, (counts.get(v) ?? 0) + 1);
-  let varS = (n * (n - 1) * (2 * n + 5)) / 18;
-  for (const t of counts.values()) if (t > 1) varS -= (t * (t - 1) * (2 * t + 5)) / 18;
-  const z = varS > 0 ? (s > 0 ? (s - 1) / Math.sqrt(varS) : s < 0 ? (s + 1) / Math.sqrt(varS) : 0) : 0;
-  const p = 2 * (1 - normalCdf(Math.abs(z)));
-  const tau = n > 1 ? s / (n * (n - 1) / 2) : 0;
+  // Mann-Kendall with tie correction, then the Hamed & Rao serial-correlation correction.
+  const mkPlain = mannKendall(y);
+  const { s, z, p, tau } = mkPlain;
+  const mkModified = hamedRao(x, y, mkPlain, sen);
+  const changePoint = pettitt(x, y);
 
   // Ordinary least squares, for a slope confidence interval and R².
   let sxx = 0, sxy = 0;
@@ -473,6 +468,10 @@ export function analyse(annual: AnnualPoint[]): TrendStats | null {
     olsCi95: ci,
     olsR2: r2,
     mk: { s, z, p, tau, significant: p < 0.05 },
+    senCi95: sen.ci95,
+    mkModified,
+    robust: p < 0.05 && mkModified.p < 0.05,
+    changePoint,
     changeAbs,
     changePct: meanY !== 0 ? (changeAbs / Math.abs(meanY)) * 100 : null,
     direction,
@@ -788,8 +787,9 @@ export async function trend(opts: {
     notes: [
       'Annual values are computed from the monthly series; monthly means are weighted by month length.',
       opts.mode === 'region' ? `Regional series averages ${samples} sample points; it is not an area-weighted basin average.` : 'Point series: trends in one grid cell can differ from the surrounding region.',
-      'Mann-Kendall p-value assumes independent annual values; serial correlation is not corrected.',
-      "Sen's slope is the median of pairwise slopes. The 95% interval is from an ordinary least-squares fit (approx.).",
+      'Mann-Kendall p-value is shown twice: the classic test, and the Hamed & Rao (1998) version that corrects for year-to-year autocorrelation.',
+      "Sen's slope is the median of pairwise slopes; its 95% interval is the non-parametric Gilbert (1987) interval. OLS is shown as a cross-check.",
+      'The Pettitt test looks for the single most likely year the series shifted level; it is exploratory, not a cause.',
       'A trend can be real without being statistically significant; a short record has less power to detect one.',
     ],
   };

@@ -33,11 +33,22 @@
       <div class="trend-head">
         <p class="eyebrow">NASA Earth data · trend detective</p>
         <h1>What is changing here?</h1>
-        <p class="trend-lede">Pick a NASA variable and a place. ATLAS draws the record, measures the trend and tests whether the change is statistically significant. Switch to <b>Compare places</b> to run the same test across several locations.</p>
+        <p class="trend-lede">Pick a NASA variable and a place. ATLAS draws the record, measures the trend and tests whether the change is statistically significant. <b>Scan all variables</b> finds what is changing; <b>Map the change</b> shows where.</p>
+      </div>
+      <div class="trend-field trend-cases" id="trend-cases">
+        <span class="trend-field-label">Case files · watch a detective run</span>
+        <div class="trend-cases-row">
+          <button type="button" data-case="dimming"><small>Case 1 · what</small><span>Hyderabad is getting dimmer</span></button>
+          <button type="button" data-case="opposite"><small>Case 2 · where</small><span>One region, two directions</span></button>
+          <button type="button" data-case="amazon"><small>Case 3 · is it real?</small><span>The Amazon heats and dries</span></button>
+        </div>
+        <p class="trend-case-note" id="trend-case-note" hidden></p>
       </div>
       <div class="trend-view" id="trend-view" role="group" aria-label="Analysis view">
         <button type="button" data-view="single" class="is-on" aria-pressed="true">Single place</button>
         <button type="button" data-view="compare" aria-pressed="false">Compare places</button>
+        <button type="button" data-view="map" aria-pressed="false">Map the change</button>
+        <button type="button" data-view="sweep" aria-pressed="false">Scan all variables</button>
       </div>
       <div class="trend-globe-row">
         <span class="trend-field-label">Globe behind the data</span>
@@ -67,7 +78,23 @@
         <datalist id="compare-presets"></datalist>
         <p class="compare-hint" id="compare-hint">Type a place or choose a preset. Every place uses the same NASA variable, period and trend test. 2–6 places.</p>
       </div>
-      <div class="trend-field">
+      <div class="trend-field map-setup" id="map-setup" hidden>
+        <span class="trend-field-label">Map the change · NASA POWER grid</span>
+        <label class="compare-count" for="map-span">Box around the place
+          <select id="map-span">
+            <option value="4">4° × 4°</option>
+            <option value="6">6° × 6°</option>
+            <option value="8" selected>8° × 8°</option>
+            <option value="10">10° × 10°</option>
+          </select>
+        </label>
+        <p class="compare-hint">Every NASA POWER grid cell (about 0.5° × 0.625°) in the box gets its own trend test. Colour shows how fast it changes; a dot means the trend survives correction for testing every cell.</p>
+      </div>
+      <div class="trend-field map-setup" id="sweep-setup" hidden>
+        <span class="trend-field-label">Scan all variables · NASA POWER</span>
+        <p class="compare-hint">Pick a place and a period. ATLAS tests every NASA POWER variable there at once, corrects for running that many tests, and ranks what is really changing. Click a result to open its full record.</p>
+      </div>
+      <div class="trend-field" id="trend-var-field">
         <span class="trend-field-label">Variable</span>
         <div class="trend-groups" id="trend-groups" role="group" aria-label="Variable group"></div>
         <div class="trend-vars" id="trend-vars" role="group" aria-label="Earth variable"></div>
@@ -189,6 +216,56 @@
       </div>
       <p class="trend-source" id="compare-source"></p>
     </aside>
+    <aside class="trend-result explore-result" id="map-result" hidden aria-label="Trend map" aria-live="polite">
+      <div class="trend-result-top">
+        <span id="map-kicker">NASA POWER · trend map</span>
+        <button type="button" id="map-close" class="x" aria-label="Close map">×</button>
+      </div>
+      <h2 id="map-title">Where is it changing?</h2>
+      <p class="trend-result-coords" id="map-sub"></p>
+      <div class="trend-headline">
+        <div><b id="map-headline">—</b><span id="map-headline-label">of cells change significantly</span></div>
+        <span class="trend-badge" id="map-badge">—</span>
+      </div>
+      <p class="trend-summary" id="map-summary"></p>
+      <div class="map-stage" id="map-stage">
+        <img id="map-base" alt="NASA Blue Marble base map of the analysed box" decoding="async" />
+        <img id="map-coast" alt="" decoding="async" />
+        <canvas id="map-canvas" aria-label="Trend per NASA POWER grid cell"></canvas>
+        <div class="trend-chart-tip" id="map-tip" hidden></div>
+      </div>
+      <div class="map-legend"><span id="map-legend-lo"></span><i id="map-legend-bar"></i><span id="map-legend-hi"></span></div>
+      <p class="map-legend-note"><b class="map-dot" aria-hidden="true"></b> significant after correcting for every cell (FDR q &lt; 0.05) · faded = no clear trend · click a cell to open its record</p>
+      <dl class="trend-stats" id="map-stats"></dl>
+      <details class="explore-method"><summary>How this map is made</summary><ul id="map-method"></ul></details>
+      <div class="trend-actions">
+        <button type="button" id="map-csv" class="iso-btn">Download cells CSV</button>
+      </div>
+      <p class="trend-source" id="map-source"></p>
+      <p class="trend-source-links"><a id="map-api" href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">Exact NASA POWER regional request</a></p>
+    </aside>
+
+    <aside class="trend-result explore-result" id="sweep-result" hidden aria-label="Variable scan" aria-live="polite">
+      <div class="trend-result-top">
+        <span id="sweep-kicker">NASA POWER · scan all variables</span>
+        <button type="button" id="sweep-close" class="x" aria-label="Close scan">×</button>
+      </div>
+      <h2 id="sweep-title">What is changing here?</h2>
+      <p class="trend-result-coords" id="sweep-sub"></p>
+      <div class="trend-headline">
+        <div><b id="sweep-headline">—</b><span>variables changing significantly</span></div>
+        <span class="trend-badge" id="sweep-badge">—</span>
+      </div>
+      <p class="trend-summary" id="sweep-summary"></p>
+      <ol class="sweep-list" id="sweep-list"></ol>
+      <details class="explore-method"><summary>How the scan works</summary><ul id="sweep-method"></ul></details>
+      <div class="trend-actions">
+        <button type="button" id="sweep-csv" class="iso-btn">Download scan CSV</button>
+      </div>
+      <p class="trend-source" id="sweep-source"></p>
+      <p class="trend-source-links" id="sweep-links"></p>
+    </aside>
+
 
     <aside class="place-science" id="place-science" hidden aria-label="NASA science for this place" aria-live="polite">
       <div class="ps-top"><span class="eyebrow">NASA science · this place</span><button type="button" id="place-science-close" class="x" aria-label="Close science panel">×</button></div>

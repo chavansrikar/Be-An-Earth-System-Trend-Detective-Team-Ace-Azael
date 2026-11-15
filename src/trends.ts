@@ -114,6 +114,12 @@ export interface TrendStats {
   olsCi95: [number, number];
   olsR2: number;
   mk: { s: number; z: number; p: number; tau: number; significant: boolean };
+  /** Sen's slope 95% interval per year (Gilbert 1987). */
+  senCi95?: [number, number];
+  /** Hamed & Rao (1998) Mann–Kendall corrected for serial correlation. */
+  mkModified?: { varianceFactor: number; z: number; p: number; significant: boolean; lag1: number };
+  robust?: boolean;
+  changePoint?: { year: number; k: number; p: number; significant: boolean; before: number; after: number } | null;
   changeAbs: number;
   changePct: number | null;
   direction: 'up' | 'down' | 'flat';
