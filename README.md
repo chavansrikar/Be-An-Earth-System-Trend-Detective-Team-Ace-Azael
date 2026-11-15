@@ -228,8 +228,8 @@ work; the ASK box stays hidden rather than failing at submit time.
 | Route | Purpose |
 |---|---|
 | `GET /api/trends?variable=t2m&lat=-3.5&lon=-62.5&start=1996&end=2025&mode=region&name=Amazon%20Basin` | NASA POWER series + Sen / Mann–Kendall / OLS |
-| `GET /api/sweep?lat=17.385&lon=78.487&start=1996&end=2025&name=Hyderabad` | Every NASA POWER variable at one place, FDR-corrected and ranked |
-| `GET /api/trendmap?variable=humidity&lat=17.9&lon=79.6&span=10&start=1996&end=2025` | Trend test in every NASA POWER grid cell of a 2°–10° box |
+| `GET /api/trends?view=sweep&lat=17.385&lon=78.487&start=1996&end=2025&name=Hyderabad` | Every NASA POWER variable at one place, FDR-corrected and ranked |
+| `GET /api/trends?view=map&variable=humidity&lat=17.9&lon=79.6&span=10&start=1996&end=2025` | Trend test in every NASA POWER grid cell of a 2°–10° box |
 | `GET /api/trends?variable=streamflow&lat=49.2&lon=-122.7...` | Nearest active USGS or ECCC gauge and its annual record |
 | `POST /api/trend-explain` | Two-sentence explanation from pre-computed statistics |
 | `POST /api/ask` | ATLAS agent: answer plus scene tools (`fly_to`, `focus_part`, layers, feeds) |
@@ -246,7 +246,7 @@ Trend responses are cached for 12 hours server-side and at the CDN. Failures are
 ```text
 api/_trends.ts        NASA POWER, USGS/ECCC, annualization, Sen, Mann–Kendall, OLS
 api/_stats.ts         Sen interval, Hamed & Rao, Pettitt, Benjamini–Hochberg (verified vs SciPy/pymannkendall)
-api/_explore.ts       variable scan (/api/sweep) and grid trend map (/api/trendmap)
+api/_explore.ts       variable scan and grid trend map, served by /api/trends?view=sweep|map
 src/explore-ui.ts     Scan all variables and Map the change views
 api/trends.ts         validated GET endpoint + cache headers
 api/trend-explain.ts  model explanation from computed facts
