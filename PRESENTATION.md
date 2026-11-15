@@ -475,6 +475,10 @@ Failures are explicit: `404` for a place with no gauge, `502` for a federal serv
 
 ## 11. Presentation deck outline
 
+**The ready-to-present file is `docs/ATLAS-EARTH-Pitch-Deck.pptx`** — 6 slides, 16:9,
+built from real screenshots of the deployed app (generator and rebuild steps in
+`docs/pitch-deck/README.md`). The outline below is what it says.
+
 A 6-slide deck is enough. The demo can carry the detail.
 
 ### Slide 1 — Title
