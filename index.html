@@ -39,6 +39,13 @@
         <button type="button" data-view="single" class="is-on" aria-pressed="true">Single place</button>
         <button type="button" data-view="compare" aria-pressed="false">Compare places</button>
       </div>
+      <div class="trend-globe-row">
+        <span class="trend-field-label">Globe behind the data</span>
+        <div class="gp-view globe-switch" data-globe-switch role="group" aria-label="Globe renderer">
+          <button type="button" data-globe-view="nasa" class="is-on" aria-pressed="true">NASA Blue Marble</button>
+          <button type="button" data-globe-view="photo" aria-pressed="false">Photoreal 3D</button>
+        </div>
+      </div>
       <form id="trend-locate" class="ask trend-ask" autocomplete="off">
         <label class="visually-hidden" for="trend-place">Place</label>
         <input id="trend-place" placeholder="Search a place, or click the globe" />
@@ -74,6 +81,21 @@
       </div>
       <button type="button" id="trend-run" class="btn-solid trend-run">Run the NASA numbers</button>
       <p class="trend-status" id="trend-status" aria-live="polite"></p>
+      <div class="trend-ask-block">
+        <span class="trend-field-label">Ask ATLAS about this record</span>
+        <form id="trend-ask" class="ask trend-ask" autocomplete="off" hidden>
+          <label class="visually-hidden" for="trend-ask-input">Ask ATLAS about this trend</label>
+          <input id="trend-ask-input" placeholder="“Is this warming unusual for here?”" />
+          <button type="submit" class="send">Ask</button>
+        </form>
+        <p class="trend-ask-note" id="trend-ask-note">Ask ATLAS needs a free model key on the server. Add one in Vercel and redeploy.</p>
+        <p class="trend-ask-answer" id="trend-ask-answer" hidden aria-live="polite"></p>
+        <details class="trend-history" id="trend-history">
+          <summary>Session history</summary>
+          <ol class="trend-history-list" id="trend-history-list"></ol>
+          <button type="button" id="trend-history-clear" class="iso-btn">Clear session</button>
+        </details>
+      </div>
       <div class="trend-field trend-imagery-field">
         <span class="trend-field-label">NASA imagery on the globe</span>
         <div class="trend-imagery">
@@ -187,9 +209,9 @@
         <span class="eyebrow">Globe</span>
         <span class="gp-mode" id="globe-mode">NASA Blue Marble</span>
       </div>
-      <div class="gp-view" id="globe-view" role="group" aria-label="Globe renderer">
-        <button type="button" id="globe-view-photo" class="is-on" aria-pressed="true">Photoreal 3D</button>
-        <button type="button" id="globe-view-nasa" aria-pressed="false">NASA Blue Marble</button>
+      <div class="gp-view globe-switch" data-globe-switch role="group" aria-label="Globe renderer">
+        <button type="button" data-globe-view="photo" class="is-on" aria-pressed="true">Photoreal 3D</button>
+        <button type="button" data-globe-view="nasa" aria-pressed="false">NASA Blue Marble</button>
       </div>
       <form class="gp-search" id="globe-search" role="search">
         <input id="globe-search-input" type="search" placeholder="Fly to a place or lat, lon" autocomplete="off" enterkeyhint="go" aria-label="Fly to a place" />
@@ -202,6 +224,8 @@
           <button type="button" id="globe-back" class="gp-btn">Back to orbit</button>
           <button type="button" id="globe-details" class="gp-btn">Details</button>
           <button type="button" id="globe-place-trend" class="gp-btn">Trends</button>
+          <button type="button" id="globe-place-compare" class="gp-btn">Compare</button>
+          <button type="button" id="globe-place-build" class="gp-btn">Build</button>
         </div>
       </div>
       <form class="gp-ask" id="globe-ask" hidden>
@@ -209,12 +233,19 @@
         <button type="submit">Ask</button>
       </form>
       <p class="gp-answer" id="globe-answer" hidden aria-live="polite"></p>
+      <details class="gp-history" id="globe-history">
+        <summary>Session history</summary>
+        <ol class="gp-history-list" id="globe-history-list"></ol>
+        <button type="button" id="globe-history-clear" class="gp-btn">Clear session</button>
+      </details>
       <div class="gp-actions" id="globe-layer-actions" role="group" aria-label="Globe layers">
         <button type="button" id="globe-spin" class="gp-btn is-on" aria-pressed="true">Spin</button>
         <button type="button" id="globe-lights" class="gp-btn is-on" aria-pressed="true">City lights</button>
         <button type="button" id="globe-satellite" class="gp-btn" aria-pressed="false">Live clouds</button>
         <button type="button" id="globe-reset" class="gp-btn">Reset</button>
       </div>
+      <div class="gp-signals" id="globe-signals" role="group" aria-label="Live signal layers"></div>
+      <div class="look gp-lenses" id="globe-lenses" role="group" aria-label="Lens"></div>
       <button type="button" id="globe-trend" class="gp-trend" hidden>Open this point in Trends</button>
       <p class="gp-hint" id="globe-hint">Drag to turn · scroll to zoom · tap to mark</p>
       <details class="gp-setup" id="globe-setup">
@@ -275,6 +306,10 @@
 
     <section class="place-panel" id="place-panel" hidden aria-label="Explore a place">
       <p class="eyebrow">Places</p>
+      <div class="gp-view globe-switch" data-globe-switch role="group" aria-label="Globe renderer">
+        <button type="button" data-globe-view="photo" class="is-on" aria-pressed="true">Photoreal 3D</button>
+        <button type="button" data-globe-view="nasa" aria-pressed="false">NASA Blue Marble</button>
+      </div>
       <form id="place-form" class="ask place-ask" autocomplete="off">
         <label class="visually-hidden" for="place-input">Place name</label>
         <input id="place-input" placeholder="Any place on Earth, e.g. Golconda Fort" />

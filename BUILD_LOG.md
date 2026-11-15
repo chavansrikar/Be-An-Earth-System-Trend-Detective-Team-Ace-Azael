@@ -199,6 +199,79 @@ No console errors and no page errors in any live run.
 
 > Note for future deploys: the Vercel CLI returned `Not authorized` for `vercel deploy --prod` in this session, so the deployment was made by pushing to `origin/main`, which the linked Vercel project builds automatically. A stray project named `atlas-live-repo` exists in the team scope from earlier CLI runs; the production app is `atlas-ace-azael`.
 
+## Globe orientation, renderer switch and the ATLAS session (15 November 2026)
+
+### The photoreal globe was upside down and mirrored
+
+The Google/Cesium renderer in `src/earth.ts` uses the `ReorientationPlugin`, which turns the
+planet so that **+z is north and -x is east** — which is *not* the same as +y being up. The
+camera code assumed the old frame (the Earth's centre one radius below the origin, +y up),
+so the whole-Earth view was rendered from the wrong side of the local up axis: north pointed
+down and east pointed left, and dragging the cursor felt reversed.
+
+Measured proof before the fix (photoreal globe, Australia):
+
+| Centre longitude | Red-interior centroid (screen x of a 680 px crop) | Reading |
+|---|---|---|
+| 125°E | 317 px | east of centre but on the left |
+| 150°E | 471 px | moved right when the centre moved east → mirrored |
+
+The NASA Blue Marble globe at the same centres moved the other way, which is what a correct
+map does.
+
+Fix:
+
+- `src/earth.ts` now reads the live frame out of the reoriented tiles every time the origin
+  moves: the Earth's centre, the local up axis, and the local north and east axes, using the
+  library's own ellipsoid so the conventions match exactly.
+- `src/stage.ts` places the camera along the real up axis (`holdWholeEarth`, `holdTopDown`,
+  `rise`, `dive`) and sets `camera.up` to the local north, so the map is north up and east
+  right in both renderers.
+- `src/main.ts` uses the same axes for the whole-Earth flights.
+
+After the fix the same measurement gives 353 px at 125°E and 200 px at 150°E: Australia sits
+right of centre at 125°E and left of centre at 150°E — exactly like the NASA globe.
+
+Two related bugs fixed in the same pass:
+
+- **Landing stuck.** After the camera landed on a place, the orbit frame loop snapped it back
+  to the whole-Earth hold, so "Eiffel Tower · 720 m" never actually held 720 m. A `globeLanded`
+  flag now hands the camera back to the orbit controls when landed, and dragging looks around
+  instead of turning the planet.
+- **Typed landmarks.** Searching *Eiffel Tower* now uses the curated landmark (720 m) instead
+  of the generic geocode depth (420 m).
+
+### One renderer switch everywhere
+
+- The Globe tab, the Places panel and the Trends panel now carry the same
+  **Photoreal 3D / NASA Blue Marble** switch. Each screen keeps its own choice.
+- The Trends tab can sit on the photoreal Earth behind the trend panel; the NASA imagery
+  scrubber applies to the Blue Marble view and the panel says so.
+- City lights and Live clouds are NASA layers, so clicking them from photoreal switches the
+  renderer and applies the layer.
+- The Globe panel's place row gained **Compare**, which opens the comparison view in Trends
+  seeded with the place on the globe. Places already had **Compare with other places**.
+
+### ATLAS exploration: complete answers and a session history
+
+- The Trends panel has an **Ask ATLAS about this record** box. It uses the Earth prompt and
+  the trend fact sheet (place, variable, period, slope, p-value, years, source).
+- The server prompt now asks for the complete picture — what is happening, where and when, the
+  key numbers with their source, and what the data cannot tell us — and forbids calling a
+  change unusual or caused without support. The answer token budget went from 700 to 1200.
+- **Session history** (Trends and Globe) keeps every question and answer of the session with
+  timestamps, and **Clear session** empties it. The same history is sent to the model as
+  context.
+
+### Verified
+
+- Trends default: Amazon Basin, air temperature, 1996–2025, **+0.32 °C/decade**, p = 0.007, 30 years.
+- Comparison with 2 places (Amazon Basin +0.32 p = 0.007, Sahel −0.10 p = 0.412) and with 4
+  places (Fraser Valley +0.32 p = 0.035), 7 limits, CSV downloaded.
+- Ask ATLAS in Trends answered in ~10 s with a complete 690-character explanation.
+- Session history listed the question and answer in both Trends and Globe, and cleared.
+- No console errors and no page errors.
+
 ## Known limitations
 
 - The NASA, USGS, ECCC and geocoding endpoints are free and keyless but can be rate-limited or briefly unavailable. Photoreal tiles use a Cesium ion token on its free Community plan; the Globe's LLM box needs a free keyed model provider.

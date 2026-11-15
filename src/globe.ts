@@ -131,6 +131,14 @@ export class NasaGlobe {
   private liveSun = false;
   private flight: { from: THREE.Vector3; to: THREE.Vector3; t: number; dur: number } | null = null;
   private firstFlight = true;
+  /** The view centre in lat/lon and the camera distance: the globe is driven from here. */
+  private viewLat = 8;
+  private viewLon = 22;
+  private viewDist = 5.0;
+  /** Eastward spin, degrees per second (the same rate as the photoreal globe). */
+  private spinning = false;
+  private spinRate = 2.2;
+  private drag: { x: number; y: number } | null = null;
   private down = { x: 0, y: 0, t: 0 };
   private resizeObserver: ResizeObserver;
   private compact = window.matchMedia('(max-width: 760px)').matches;
@@ -160,9 +168,39 @@ export class NasaGlobe {
     this.controls.maxDistance = 5.5;
     this.controls.rotateSpeed = 0.42;
     this.controls.zoomSpeed = 0.7;
-    this.controls.autoRotate = true;
-    this.controls.autoRotateSpeed = 0.22;
-    this.controls.addEventListener('start', () => { this.controls.autoRotate = false; });
+    this.controls.autoRotate = false;
+    // The globe drives the camera from lat/lon so that dragging and spinning match the
+    // photoreal renderer exactly: the ground follows the cursor, the planet turns eastward.
+    this.controls.enableRotate = false;
+    this.controls.enableZoom = false;
+    const el = this.renderer.domElement;
+    const onMove = (ev: PointerEvent) => {
+      if (!this.drag) return;
+      const dx = ev.clientX - this.drag.x;
+      const dy = ev.clientY - this.drag.y;
+      this.drag.x = ev.clientX;
+      this.drag.y = ev.clientY;
+      const k = 0.22 * (this.viewDist / 5);
+      this.nudge(-dx * k, dy * k);
+    };
+    // The listeners live on the window so a drag that leaves the canvas still ends cleanly.
+    const endDrag = () => {
+      this.drag = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+    };
+    el.addEventListener('pointerdown', (ev) => {
+      this.drag = { x: ev.clientX, y: ev.clientY };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', endDrag);
+      window.addEventListener('pointercancel', endDrag);
+    });
+    el.addEventListener('wheel', (ev) => {
+      this.viewDist = THREE.MathUtils.clamp(this.viewDist * Math.exp(ev.deltaY * 0.0012), 1.35, 5.5);
+      this.applyView();
+      ev.preventDefault();
+    }, { passive: false });
 
     this.loader.setCrossOrigin('anonymous');
 
@@ -451,9 +489,13 @@ export class NasaGlobe {
 
   /** Point the camera at a coordinate, keeping the current zoom (or a given distance). */
   focus(lat: number, lon: number, animate = true, distance?: number, duration = 1.15) {
-    const p = latLonToVector3(THREE.MathUtils.clamp(lat, -75, 75), lon, 1).normalize();
+    const latC = THREE.MathUtils.clamp(lat, -75, 75);
+    const p = latLonToVector3(latC, lon, 1).normalize();
     const dist = THREE.MathUtils.clamp(distance ?? this.camera.position.length(), 1.8, 5.0);
     const to = p.multiplyScalar(dist);
+    this.viewLat = latC;
+    this.viewLon = lon;
+    this.viewDist = dist;
     this.controls.autoRotate = false;
     if (!animate) {
       this.camera.position.copy(to);
@@ -462,6 +504,23 @@ export class NasaGlobe {
       return;
     }
     this.flight = { from: this.camera.position.clone(), to, t: 0, dur: duration };
+  }
+
+  /**
+   * Turn the globe the way the photoreal globe turns: the ground follows the cursor and
+   * the planet spins eastward, both at the same speed as the Cesium renderer.
+   */
+  nudge(dLon: number, dLat: number) {
+    this.viewLon = ((this.viewLon + dLon + 540) % 360) - 180;
+    this.viewLat = THREE.MathUtils.clamp(this.viewLat + dLat, -75, 75);
+    this.applyView();
+  }
+
+  private applyView() {
+    const p = latLonToVector3(this.viewLat, this.viewLon, 1).normalize().multiplyScalar(this.viewDist);
+    this.camera.position.copy(p);
+    this.controls.target.set(0, 0, 0);
+    this.controls.update();
   }
 
   setMarker(lat: number, lon: number, name: string, distance?: number) {
@@ -489,7 +548,8 @@ export class NasaGlobe {
   }
 
   setSpin(on: boolean) {
-    this.controls.autoRotate = on;
+    this.spinning = on;
+    this.controls.autoRotate = false;
   }
 
   /** Cross-fade the NASA VIIRS night lights (1 = full, 0 = off). */
@@ -531,6 +591,10 @@ export class NasaGlobe {
       const e = 1 - Math.pow(1 - this.flight.t, 3);
       this.camera.position.lerpVectors(this.flight.from, this.flight.to, e);
       if (this.flight.t >= 1) this.flight = null;
+    } else if (this.spinning && !this.drag) {
+      // Eastward: the ground moves right, the same way the real Earth turns.
+      this.viewLon = ((this.viewLon - this.spinRate * dt + 540) % 360) - 180;
+      this.applyView();
     }
     this.controls.update();
 

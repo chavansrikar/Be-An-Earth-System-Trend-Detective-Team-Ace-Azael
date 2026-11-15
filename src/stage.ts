@@ -173,8 +173,8 @@ export class Stage {
    */
   dive(target: THREE.Vector3, radius: number, fromDistance: number, dur = 6.5, done?: () => void, topDown = false) {
     this.landing = target;
-    const end = this.approach.clone();
-    const top = Stage.topDir(end);
+    const end = this.approachDir;
+    const top = this.topDirHere(end);
     const l0 = Math.log(Math.max(fromDistance, radius)), l1 = Math.log(radius);
     const dir = new THREE.Vector3();
     this.run(dur, (k) => {
@@ -191,14 +191,34 @@ export class Stage {
   }
 
   /**
-   * Direction the camera approaches a landmark from. In this frame +z is north and -x is east,
-   * so this sits south-south-east of the target, looking north: north is up on screen.
+   * Direction the camera approaches a landmark from. In the hologram frame +z is north and
+   * -x is east, so this sits south-south-east of the target, looking north: north is up on
+   * screen. On the Earth the same heading is rebuilt from the live local frame.
    */
   approach = new THREE.Vector3(-0.3, 0.42, -0.86).normalize();
+
+  /** The approach heading in the frame the camera is actually in. */
+  private get approachDir(): THREE.Vector3 {
+    if (!this.earthOn) return this.approach;
+    const e = this.earth.eastAxis;
+    const n = this.earth.northAxis;
+    const u = this.earth.upAxis;
+    return e.clone().multiplyScalar(0.3).addScaledVector(n, -0.86).addScaledVector(u, 0.42).normalize();
+  }
 
   /** Straight up, nudged a hair toward `d` so a top-down view keeps a defined, north-up heading. */
   static topDir(d: THREE.Vector3) {
     return new THREE.Vector3(d.x * 1e-3, 1, d.z * 1e-3).normalize();
+  }
+
+  /** Straight up in the live frame, with the same hair of heading. */
+  private topDirHere(d: THREE.Vector3) {
+    if (!this.earthOn) return Stage.topDir(d);
+    const u = this.earth.upAxis;
+    const n = this.earth.northAxis;
+    const e = this.earth.eastAxis;
+    const heading = e.clone().multiplyScalar(d.dot(this.earth.eastAxis)).addScaledVector(n, d.dot(n));
+    return u.clone().addScaledVector(heading, 1e-3).normalize();
   }
 
   /** Hold top-down at `height` until `ready()` (after at least `min` s, at most `max` s). */
@@ -213,19 +233,21 @@ export class Stage {
 
   /** Hold the camera top-down `height` metres above the origin, north up. */
   holdTopDown(height: number) {
-    this.camera.position.copy(Stage.topDir(this.approach)).multiplyScalar(height);
+    this.camera.position.copy(this.topDirHere(this.approachDir)).multiplyScalar(height);
+    if (this.earthOn) this.camera.up.copy(this.earth.northAxis);
     this.controls.target.set(0, 0, 0);
   }
 
   /**
-   * Whole-Earth orbit for photoreal tiles. The reorientation plugin puts the selected
-   * surface point at the local origin, so the planet's centre sits one Earth radius below
-   * it. Aim at that centre instead of the surface, or the globe falls out of frame.
+   * Whole-Earth orbit for photoreal tiles. The reorientation plugin turns the planet so
+   * that +z is north and -x is east, which is not the same as +y being up, so the camera
+   * is placed along the real local up axis and aimed at the Earth's centre in that frame.
    */
   holdWholeEarth(height: number) {
-    const R = 6371000;
-    this.camera.position.set(0, R * -1 + height, 0);
-    this.controls.target.set(0, -R, 0);
+    const e = this.earth;
+    this.camera.position.copy(e.center).addScaledVector(e.upAxis, height);
+    this.camera.up.copy(e.northAxis);
+    this.controls.target.copy(e.center);
   }
 
   /** Climb straight up above the current target to `height` metres, levelling to top-down. */
@@ -233,7 +255,7 @@ export class Stage {
     const target = this.controls.target.clone();
     const off = this.camera.position.clone().sub(target);
     const l0 = Math.log(Math.max(off.length(), 1)), l1 = Math.log(height);
-    const dir0 = off.normalize(), up = Stage.topDir(this.approach), dir = new THREE.Vector3();
+    const dir0 = off.normalize(), up = this.topDirHere(this.approachDir), dir = new THREE.Vector3();
     this.run(dur, (k) => {
       const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       dir.copy(dir0).lerp(up, THREE.MathUtils.smoothstep(k, 0, 0.6)).normalize();

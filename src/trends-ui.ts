@@ -374,6 +374,11 @@ function updateRunLabel() {
     : 'Run the NASA numbers';
 }
 
+/** The result card is a bottom sheet on narrow screens: the panel has to make room. */
+function setResultOpen(on: boolean) {
+  document.body.classList.toggle('result-open', on);
+}
+
 function buildCompareRows() {
   const select = $<HTMLSelectElement>('compare-count');
   const count = Math.min(6, Math.max(2, Number(select.value) || 3));
@@ -417,10 +422,13 @@ function setView(view: TrendView) {
   updateRunLabel();
   if (view === 'single') {
     $('compare-result').hidden = true;
+  setResultOpen(false);
     if (state.result) $('trend-result').hidden = false;
+    setResultOpen(!$('trend-result').hidden);
   } else {
     $('trend-result').hidden = true;
     if (compare.entries.length) $('compare-result').hidden = false;
+    setResultOpen(!$('compare-result').hidden);
     buildCompareRows();
     drawCompareChart();
   }
@@ -478,9 +486,9 @@ function bindEvents() {
     b.addEventListener('click', () => setView(b.dataset.view === 'compare' ? 'compare' : 'single'));
   });
   $('compare-count').addEventListener('change', buildCompareRows);
-  $('compare-close').addEventListener('click', () => { $('compare-result').hidden = true; });
+  $('compare-close').addEventListener('click', () => { $('compare-result').hidden = true; setResultOpen(false); });
   $('compare-csv').addEventListener('click', downloadCompareCsv);
-  $('trend-close').addEventListener('click', () => { $('trend-result').hidden = true; });
+  $('trend-close').addEventListener('click', () => { $('trend-result').hidden = true; setResultOpen(false); });
   $('trend-explain').addEventListener('click', () => {
     const el = $('trend-explain-text');
     el.hidden = !el.hidden;
@@ -808,6 +816,7 @@ async function run() {
 function render(r: TrendResult) {
   $('trend-result').hidden = false;
   $('compare-result').hidden = true;
+  setResultOpen(true);
   $('trend-result-place').textContent = r.place.name;
   const g = r.place.gauge;
   const mode = g
@@ -904,6 +913,7 @@ function renderCompare(entries: CompareEntry[], start: number, end: number) {
   const ok = entries.filter((e) => e.result);
   $('compare-result').hidden = false;
   $('trend-result').hidden = true;
+  setResultOpen(true);
   $('compare-kicker').textContent = 'NASA POWER / MERRA-2 · comparison';
   $('compare-title').textContent = ok.length === entries.length
     ? `${entries.length} places compared`

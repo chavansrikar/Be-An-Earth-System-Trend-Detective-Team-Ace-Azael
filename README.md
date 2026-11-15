@@ -45,12 +45,14 @@ No keyless NASA point API for river discharge was found. Streamflow therefore co
 
 ### 1. Trend Detective (default)
 
+- The globe behind the data can be switched between **NASA Blue Marble** and **Photoreal 3D** (the same switch the Places and Globe tabs use), so every globe in the app behaves the same way.
 - Choose a variable group, a NASA parameter, a place and a 10–45 year period.
 - Run the NASA numbers.
 - Read the rate, significance badge, annual or monthly chart, full statistics table and source note.
 - Scrub NASA imagery by year and month; switch between Blue Marble and MODIS Terra satellite.
 - Download the annual + monthly series as CSV, open the exact POWER API request, or open the POWER Data Access Viewer. The viewer itself blocks embedding (`X-Frame-Options: DENY`), so ATLAS links to it rather than pretending to host it.
-- Use **Ask ATLAS** for a plain-language explanation. It is gated on a live model, keyed or keyless.
+- Use **Ask ATLAS** for a plain-language explanation. It is gated on a live model, keyed or keyless. The answer is complete and specific: the rate, the significance, the source and the limits, and the model is told never to claim a change is unusual or caused by something the data does not support.
+- The **Session history** panel under the ask box keeps this session's questions and answers with timestamps, in the Trends tab and in the Globe tab. **Clear session** empties both.
 - Switch to **Compare places** to run the same NASA variable, period and trend test across 2–6 locations. The result shows a slope chart, a table, a deterministic brief summary, a limits summary and a comparison CSV. Presets, typed place names and `lat, lon` are accepted; **Compare with other places** in Places seeds it with the current place.
 
 ### 2. Globe
@@ -64,10 +66,14 @@ A full-screen planet with almost no interface: the third tab after Places. It is
 - **Ask the globe** (when a keyed model is live): the same panel has an ask box. The agent answers in the panel and its `fly_to` tool is routed to the Globe flight, so “take me to the Eiffel Tower” lands at the tower rather than switching to Places. The box stays hidden until `/api/status` reports a keyed provider, so it never promises an agent that is not running.
 - **Without a token** it uses the NASA globe, not a wireframe: Blue Marble shaded relief + bathymetry, a bundled 2048 px first paint that upgrades to a 4096 px NASA GIBS mosaic, VIIRS city lights, a live subsolar-point terminator, atmosphere and stars. Search still works and flies the NASA globe to the place.
 - **Spin**, **City lights**, **Live clouds** and **Reset** are present in both views. *Live clouds* lifts the day's near-white MODIS Terra clouds onto the seamless Blue Marble base, so the daily scene adds weather without its black swath gaps.
+- **Compare** in the place row opens the comparison view in Trends, seeded with the place on the globe.
+- The whole-Earth view turns **eastward** and the map is **north up, east right** in both renderers. The tile frame the Cesium/Google renderer uses is not the world's frame (+z is north, -x is east, and +y is *not* up), so the camera is placed on the real local up axis instead of a guessed one.
 - Tap the planet to mark a coordinate; **Open this point in Trends** carries it into the full 30-year analysis. After a photoreal landing, **Details** opens the same place in Places with the NASA science card, and **Trends** opens its 30-year record.
 - The panel's **Enable photoreal 3D** disclosure explains the free token steps without sending anyone to a dead end.
 
 ### 3. Places with NASA science
+
+Places carries the same **Photoreal 3D / NASA Blue Marble** switch as the other tabs, plus the same search, compare, live-signal and lens controls in either renderer.
 
 With a map token configured, Places uses the original photoreal path: search a place, fly to its 3D mesh, then read the science. Without one it uses the NASA globe rather than a wireframe:
 

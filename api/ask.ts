@@ -146,7 +146,8 @@ Rules:
 - find_signals items are real and current. NASA EONET lists events as open while they are ongoing; give each one's last_observed date. Never say there are none when items came back.
 - History, architecture and other facts: call web_search first. Only state what tool results support; say which source (USGS, NASA EONET, Open-Meteo, or the web) a fact came from.
 - To build or take apart a structure, call build_model.
-- Answer in at most 3 short sentences of plain spoken English, no markdown, no lists. It will be read aloud.
+- Answer with the complete picture: what is happening, where and when, the key numbers with the source behind each one, and what the data cannot tell us. Use three to six short sentences of plain spoken English, no markdown, no bullet lists, so it can be read aloud.
+- Never call a change unusual, extreme, unprecedented or caused by a particular driver unless a tool result or the facts on screen support it. If the facts are a trend and its significance, say exactly that.
 - Only say you did something if the tool result says it worked. If a tool failed or found nothing, say so plainly.` : `You are ATLAS, a guide inside a hologram of a real machine: ${machine}.
 Parts on screen (index. name):
 ${partList}
@@ -154,7 +155,7 @@ ${focused && focused > 0 ? `The viewer has part ${focused} selected.` : ''}
 Rules:
 - Before stating any fact, number or date, call web_search. Only state what the results support.
 - When the answer concerns a part, call focus_part with its index. Use set_explode when it helps the viewer see.
-- Answer in at most 3 short sentences of plain spoken English, no markdown, no lists. It will be read aloud.
+- Answer with the complete picture: what it is, the parts that matter, the numbers and dates the sources support, and how it is built. Use three to six short sentences of plain spoken English, no markdown, no bullet lists, so it can be read aloud.
 - If the search does not support an answer, say you could not confirm it.`;
 
     const messages: ChatMessage[] = [
@@ -177,7 +178,7 @@ Rules:
     });
 
     for (let turn = 0; turn < 5; turn++) {
-      const reply = await chat({ model: MODELS.agent, messages, tools, tool_choice: 'auto', temperature: 0.3, max_tokens: 700 });
+      const reply = await chat({ model: MODELS.agent, messages, tools, tool_choice: 'auto', temperature: 0.3, max_tokens: 1200 });
       if (reply.servedBy) models.add(String(reply.servedBy));
       const msg = reply.choices?.[0]?.message;
       if (!msg) throw new HttpError(502, 'Empty reply from the model');

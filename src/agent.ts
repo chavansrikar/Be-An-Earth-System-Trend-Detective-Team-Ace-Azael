@@ -29,7 +29,25 @@ interface AskReply {
   error?: string;
 }
 
-const history: { role: 'user' | 'assistant'; content: string }[] = [];
+export interface SessionEntry { role: 'user' | 'assistant'; content: string; at: number }
+
+const history: SessionEntry[] = [];
+
+/** The conversation so far, newest last. Used by the server for context and by the UI. */
+export function sessionHistory(): SessionEntry[] {
+  return history.slice();
+}
+
+/** Forget the session (the UI history list and the model context). */
+export function clearSession() {
+  history.length = 0;
+  window.dispatchEvent(new CustomEvent('atlas:session'));
+}
+
+/** Tell the UI that the session changed, so both history lists can redraw. */
+export function announceSession() {
+  window.dispatchEvent(new CustomEvent('atlas:session'));
+}
 
 export async function ask(question: string, ctx: AgentContext) {
   ui.log(question, 'you');
@@ -39,7 +57,7 @@ export async function ask(question: string, ctx: AgentContext) {
     const r = await fetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, mode: ctx.mode?.() ?? 'object', machine: ctx.machine(), parts: ctx.parts(), focused: ctx.focused() + 1, layers: ctx.layers?.() ?? [], history }),
+      body: JSON.stringify({ question, mode: ctx.mode?.() ?? 'object', machine: ctx.machine(), parts: ctx.parts(), focused: ctx.focused() + 1, layers: ctx.layers?.() ?? [], history: history.map((h) => ({ role: h.role, content: h.content })) }),
     });
     const j = (await r.json()) as AskReply;
     thinking.remove();
@@ -61,7 +79,9 @@ export async function ask(question: string, ctx: AgentContext) {
     // Which model answered (the provider can fail over), so the viewer always knows who is talking.
     if (j.model) ui.log(`answered by ${j.model.split(' + ').map((m) => m.split('·').pop()!.trim().split('/').pop()).join(' + ')}`, 'model');
     if (ctx.focused() >= 0) { ui.setCardBody(j.answer); ui.setSources(j.sources); }
-    history.push({ role: 'user', content: question }, { role: 'assistant', content: j.answer });
+    const now = Date.now();
+    history.push({ role: 'user', content: question, at: now }, { role: 'assistant', content: j.answer, at: now });
+    announceSession();
     speak(j.answer);
     setAgent('ok');
   } catch (err) {

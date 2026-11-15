@@ -10,7 +10,7 @@ import { LIBRARY, type LibraryEntry } from './library';
 import { ui } from './ui';
 import { applyCss, theme } from './theme';
 import { GestureControl } from './gestures';
-import { ask, listen, refreshStatus } from './agent';
+import { ask, listen, refreshStatus, sessionHistory, clearSession } from './agent';
 import { ScanModel, identify } from './scan';
 import { buildPlace, fetchPlace, sunDirection, type PlaceData } from './places';
 import { LANDMARKS, type Landmark } from './landmarks';
@@ -213,7 +213,7 @@ const agentCtx = {
   focused: () => stage.model?.focused ?? -1,
   focusPart,
   setExplode,
-  mode: () => (earthActive ? 'earth' : 'object') as 'earth' | 'object',
+  mode: () => (earthActive || mode === 'trends' ? 'earth' : 'object') as 'earth' | 'object',
   flyTo: (place: string, lat?: number, lon?: number) => {
     if (mode === 'globe') { void globeFlyByName(place, lat, lon); return; }
     const q = place.toLowerCase();
@@ -311,6 +311,10 @@ function setMode(m: Mode) {
   setTrendMode(m === 'trends');
   if (m === 'trends' || placeGlobeActive || globeTabFallbackActive) stage.pause();
   else if (m !== 'globe') stage.resume();
+  if (m === 'trends') {
+    if (globeViewPref.trends === 'photo') void setTrendsGlobeView('photo');
+    else updateGlobeViewToggles('nasa');
+  }
   if (m === 'places') enterPlaces();
   else if (m === 'globe') void enterGlobeTab();
   const u = new URL(location.href);
@@ -528,22 +532,24 @@ for (const l of LANDMARKS) {
 
 // Lenses: the same world through a different sensor. Keys 1 to 5 while in Places.
 let lens: Lens = 'photo';
-const lensBox = document.getElementById('lenses')!;
-for (const l of LENSES) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'look-btn';
-  b.dataset.lens = l.id;
-  b.title = `${l.label} (key ${l.key})`;
-  b.innerHTML = `<span class="lk"></span>`;
-  b.firstElementChild!.textContent = l.key;
-  b.append(l.label);
-  b.addEventListener('click', () => setLens(l.id));
-  lensBox.appendChild(b);
+const lensBoxes = [document.getElementById('lenses'), document.getElementById('globe-lenses')].filter(Boolean) as HTMLElement[];
+for (const box of lensBoxes) {
+  for (const l of LENSES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'look-btn';
+    b.dataset.lens = l.id;
+    b.title = `${l.label} (key ${l.key})`;
+    b.innerHTML = `<span class="lk"></span>`;
+    b.firstElementChild!.textContent = l.key;
+    b.append(l.label);
+    b.addEventListener('click', () => setLens(l.id));
+    box.appendChild(b);
+  }
 }
 function setLens(l: Lens) {
   lens = l;
-  lensBox.querySelectorAll<HTMLButtonElement>('.look-btn').forEach((x) => { const on = x.dataset.lens === l; x.classList.toggle('is-on', on); x.setAttribute('aria-pressed', String(on)); });
+  for (const box of lensBoxes) box.querySelectorAll<HTMLButtonElement>('.look-btn').forEach((x) => { const on = x.dataset.lens === l; x.classList.toggle('is-on', on); x.setAttribute('aria-pressed', String(on)); });
   document.body.dataset.lens = l;
   stage.earth.setLook(l === 'hologram' ? 'hologram' : 'photo');
   stage.lens.set(earthActive ? l : 'photo');
@@ -607,11 +613,19 @@ async function getEarthAuth(): Promise<EarthAuth | null> {
 async function enterPlaces() {
   const auth = await getEarthAuth();
   if (mode !== 'places') return;
+  if (globeViewPref.places === 'nasa') {
+    enablePlaceGlobe(true);
+    updateGlobeViewToggles('nasa');
+    placeStatus.textContent = 'NASA Blue Marble globe · live day/night · city lights';
+    return;
+  }
   if (!auth) {
     enablePlaceGlobe();
+    updateGlobeViewToggles('nasa', false);
     return;
   }
   if (placeGlobeActive) disablePlaceGlobe();
+  updateGlobeViewToggles('photo', true);
   if (!earthStarted) { if (currentLandmark) selectLandmark(currentLandmark); else goGlobe(); }
   else earthOn();
 }
@@ -686,13 +700,84 @@ async function refreshGlobeAgent() {
     const j = await (await fetch('/api/status')).json();
     globeAgentLive = !!j.provider;
   } catch { globeAgentLive = false; }
-  const form = document.getElementById('globe-ask') as HTMLFormElement | null;
-  if (form) form.hidden = !globeAgentLive;
+  applyAgentAvailability();
 }
+
+/** Show the ask boxes only when a keyed model is actually live. */
+function applyAgentAvailability() {
+  const globeForm = document.getElementById('globe-ask') as HTMLFormElement | null;
+  if (globeForm) globeForm.hidden = !globeAgentLive;
+  const trendForm = document.getElementById('trend-ask') as HTMLFormElement | null;
+  if (trendForm) trendForm.hidden = !globeAgentLive;
+  const note = document.getElementById('trend-ask-note');
+  if (note) note.hidden = globeAgentLive;
+}
+
+/** Draw the session history in every list that shows it. */
+function renderSessionHistory() {
+  const entries = sessionHistory();
+  for (const id of ['globe-history-list', 'trend-history-list']) {
+    const list = document.getElementById(id);
+    if (!list) continue;
+    list.replaceChildren();
+    if (!entries.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = 'No questions yet in this session.';
+      list.appendChild(li);
+      continue;
+    }
+    for (const e of entries) {
+      const li = document.createElement('li');
+      li.className = e.role;
+      const when = document.createElement('time');
+      when.textContent = new Date(e.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const who = document.createElement('b');
+      who.textContent = e.role === 'user' ? 'You' : 'ATLAS';
+      const body = document.createElement('span');
+      body.textContent = e.content;
+      li.append(when, who, body);
+      list.appendChild(li);
+    }
+  }
+}
+window.addEventListener('atlas:session', renderSessionHistory);
+renderSessionHistory();
+
+document.getElementById('globe-history-clear')?.addEventListener('click', () => clearSession());
+document.getElementById('trend-history-clear')?.addEventListener('click', () => clearSession());
+
+// Ask ATLAS about the record on screen, with the session history kept beside it.
+const trendAskCtx = {
+  ...agentCtx,
+  onAnswer: (answer: string) => {
+    const box = document.getElementById('trend-ask-answer');
+    if (!box) return;
+    box.hidden = false;
+    box.textContent = answer;
+  },
+  onError: (message: string) => {
+    const box = document.getElementById('trend-ask-answer');
+    if (!box) return;
+    box.hidden = false;
+    box.textContent = message;
+  },
+};
+(document.getElementById('trend-ask') as HTMLFormElement).addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const input = document.getElementById('trend-ask-input') as HTMLInputElement;
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  const box = document.getElementById('trend-ask-answer');
+  if (box) { box.hidden = false; box.textContent = 'Thinking…'; }
+  void ask(q, trendAskCtx);
+});
 
 /** The NASA Blue Marble fallback also answers searches, at a fitting whole-globe distance. */
 function globeFallbackFlyTo(target: Landmark) {
   globePlace = target;
+  globeLanded = true;
   globePick = { name: target.name, lat: target.lat, lon: target.lon };
   const view = target.view;
   const dist = view >= 200000 ? 4.8 : view >= 40000 ? 4.2 : view >= 7000 ? 3.6 : 2.8;
@@ -810,8 +895,9 @@ async function globeFlyTo(target: Landmark) {
   // Settle into a true whole-Earth hold (camera and target both shift by one Earth radius).
   await new Promise<void>((resolve) => {
     const fromP = stage.camera.position.clone(), fromT = stage.controls.target.clone();
-    const toP = new THREE.Vector3(0, -6371000 + height, 0), toT = new THREE.Vector3(0, -6371000, 0);
-    const whole = fromP.distanceTo(fromT) > height * 0.85 && Math.abs(fromT.y + 6371000) < 1e5;
+    const toP = stage.earth.center.clone().addScaledVector(stage.earth.upAxis, height);
+    const toT = stage.earth.center.clone();
+    const whole = fromP.distanceTo(fromT) > height * 0.85 && fromT.distanceTo(stage.earth.center) < 1e5;
     if (whole) { stage.holdWholeEarth(height); resolve(); return; }
     stage.run(1.6, (k) => {
       const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
@@ -861,7 +947,9 @@ async function globeFlyTo(target: Landmark) {
   const fromDistance = Math.max(height - 6371000, target.view);
   await new Promise<void>((resolve) => stage.dive(land, target.view, fromDistance, 7.2, resolve, target.view >= 100000));
   if (mode !== 'globe' || seq !== globeFlightSeq) return;
-  setGlobeStatus(`${target.name} · ${fmtView(target.view)} view · drag to orbit · Back to orbit returns to the planet`);
+  globeLanded = true;
+  stage.controls.enabled = true;
+  setGlobeStatus(`${target.name} · ${fmtView(target.view)} view · drag to look around · Back to orbit returns to the planet`);
   globeRow(target);
 }
 
@@ -880,13 +968,15 @@ function globeBackToOrbit() {
   }
   const at = globePlace ?? originLL ?? { lat: 18, lon: 78 };
   ++globeFlightSeq;
+  globeLanded = false;
   stage.earth.onGround = null;
   globePlace = null;
   globeRow(null);
   setGlobeStatus('Returning to orbit…');
   const height = globeDist();
   const fromP = stage.camera.position.clone(), fromT = stage.controls.target.clone();
-  const toP = new THREE.Vector3(0, -6371000 + height, 0), toT = new THREE.Vector3(0, -6371000, 0);
+  const toP = stage.earth.center.clone().addScaledVector(stage.earth.upAxis, height);
+  const toT = stage.earth.center.clone();
   stage.run(2.4, (k) => {
     const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
     stage.camera.position.lerpVectors(fromP, toP, e);
@@ -947,27 +1037,33 @@ function disableGlobeTabFallback() {
 
 type GlobeView = 'photo' | 'nasa';
 
+/** Which renderer each screen last chose: Trends, Places and Globe keep their own pick. */
+const globeViewPref: Record<'trends' | 'places' | 'globe', GlobeView> = { trends: 'nasa', places: 'photo', globe: 'photo' };
+
 /** The renderer switch: Google's photoreal tiles or the NASA Blue Marble globe. */
-function updateGlobeViewToggles(view: GlobeView, photoAvailable = Boolean(earthAuth)) {
-  const photo = document.getElementById('globe-view-photo') as HTMLButtonElement | null;
-  const nasa = document.getElementById('globe-view-nasa') as HTMLButtonElement | null;
-  if (!photo || !nasa) return;
-  photo.disabled = !photoAvailable;
-  photo.title = photoAvailable
-    ? 'Google Photorealistic 3D Tiles streamed through Cesium ion'
-    : 'Add a Cesium ion or Google Maps token to enable photoreal tiles';
-  nasa.title = 'NASA GIBS Blue Marble with live day/night and VIIRS city lights';
-  for (const [b, on] of [[photo, view === 'photo'], [nasa, view === 'nasa']] as const) {
-    b.classList.toggle('is-on', on);
-    b.setAttribute('aria-pressed', String(on));
-  }
+function updateGlobeViewToggles(view: GlobeView, photoAvailable = earthAuth !== null) {
+  document.querySelectorAll<HTMLElement>('[data-globe-switch]').forEach((box) => {
+    box.querySelectorAll<HTMLButtonElement>('[data-globe-view]').forEach((b) => {
+      const on = b.dataset.globeView === view;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+      b.disabled = b.dataset.globeView === 'photo' && !photoAvailable;
+      b.title = b.dataset.globeView === 'photo'
+        ? (photoAvailable ? 'Google Photorealistic 3D Tiles streamed through Cesium ion' : 'Add a Cesium ion or Google Maps token to enable photoreal tiles')
+        : 'NASA GIBS Blue Marble with live day/night and VIIRS city lights';
+    });
+  });
   const lights = document.getElementById('globe-lights');
   const clouds = document.getElementById('globe-satellite');
   if (lights) lights.title = view === 'photo' ? 'City lights (switches to the NASA renderer)' : 'VIIRS city lights';
   if (clouds) clouds.title = view === 'photo' ? 'Live clouds (switches to the NASA renderer)' : 'Today’s MODIS Terra clouds';
 }
 
+/** Apply the renderer choice to whichever screen is showing a globe right now. */
 async function setGlobeView(view: GlobeView) {
+  if (mode === 'trends') { globeViewPref.trends = view; await setTrendsGlobeView(view); return; }
+  if (mode === 'places') { globeViewPref.places = view; await setPlaceGlobeView(view); return; }
+  globeViewPref.globe = view;
   if (mode !== 'globe') return;
   if (view === 'nasa') {
     if (globeTabFallbackActive) { updateGlobeViewToggles('nasa'); return; }
@@ -986,6 +1082,66 @@ async function setGlobeView(view: GlobeView) {
   await enterGlobeTab();
 }
 
+/** Places: photoreal tiles or the NASA globe, with the same controls either way. */
+async function setPlaceGlobeView(view: GlobeView) {
+  if (mode !== 'places') return;
+  if (view === 'nasa') {
+    disablePlaceGlobe();
+    enablePlaceGlobe(true);
+    updateGlobeViewToggles('nasa');
+    placeStatus.textContent = 'NASA Blue Marble globe · live day/night · city lights';
+    return;
+  }
+  const auth = await getEarthAuth();
+  if (mode !== 'places') return;
+  if (!auth) {
+    enablePlaceGlobe(true);
+    updateGlobeViewToggles('nasa', false);
+    placeStatus.textContent = 'Photoreal tiles need a Cesium ion or Google Maps token · NASA globe is showing';
+    return;
+  }
+  disablePlaceGlobe();
+  await enterPlaces();
+  updateGlobeViewToggles('photo', true);
+}
+
+/** Trends: the NASA globe with the GIBS overlays, or the photoreal Earth behind the data. */
+async function setTrendsGlobeView(view: GlobeView) {
+  if (mode !== 'trends') return;
+  if (view === 'nasa') {
+    document.body.classList.remove('photo-globe');
+    if (earthActive) exitEarth();
+    stage.pause();
+    setTrendMode(true);
+    updateGlobeViewToggles('nasa');
+    return;
+  }
+  const auth = await getEarthAuth();
+  if (mode !== 'trends') return;
+  if (!auth) {
+    updateGlobeViewToggles('nasa', false);
+    setGlobeStatus('Photoreal tiles need a Cesium ion or Google Maps token · NASA Blue Marble is showing');
+    return;
+  }
+  document.body.classList.add('photo-globe');
+  setTrendMode(false);
+  earthOn();
+  stage.resume();
+  ui.closeCard();
+  const at = originLL ?? { lat: 18, lon: 78 };
+  const enter = () => { globe = { lat: at.lat, lon: at.lon, dist: globeDist(), spin: !reducedMotion }; originLL = { ...at }; };
+  if (!earthStarted || !originLL) {
+    stage.earth.start(auth, at.lat, at.lon);
+    stage.earth.setLook('photo');
+    earthStarted = true;
+    originLL = { ...at };
+    stage.holdUntil(globeDist(), () => stage.earth.visibleTiles > 4, 0.4, 4, enter, true);
+  } else {
+    stage.rise(globeDist(), 2.2, enter);
+  }
+  updateGlobeViewToggles('photo', true);
+}
+
 /**
  * A full-screen Earth as its own mode. With CESIUM_ION_TOKEN or GOOGLE_MAPS_KEY the stage
  * streams Google Photorealistic 3D Tiles; without one it falls back to the NASA globe,
@@ -994,6 +1150,7 @@ async function setGlobeView(view: GlobeView) {
 async function enterGlobeTab() {
   const seq = ++globeTabRequest;
   ++globeFlightSeq;
+  globeLanded = false;
   stage.earth.onGround = null;
   globePlace = null;
   globeRow(null);
@@ -1001,6 +1158,11 @@ async function enterGlobeTab() {
   $('globe-mode').textContent = 'Opening globe…';
   setGlobeStatus('Opening the globe…');
   void refreshGlobeAgent();
+  if (globeViewPref.globe === 'nasa') {
+    enableGlobeTabFallback();
+    updateGlobeViewToggles('nasa');
+    return;
+  }
   const auth = await getEarthAuth();
   if (mode !== 'globe' || seq !== globeTabRequest) return;
   if (!auth) { enableGlobeTabFallback(); updateGlobeViewToggles('nasa', false); return; }
@@ -1108,9 +1270,10 @@ async function enterGlobeTab() {
   globeRow(null);
   setGlobeStatus('NASA Blue Marble · live day/night terminator · VIIRS city lights');
 });
-(document.getElementById('globe-view-photo') as HTMLButtonElement).addEventListener('click', () => void setGlobeView('photo'));
-(document.getElementById('globe-view-nasa') as HTMLButtonElement).addEventListener('click', () => void setGlobeView('nasa'));
-
+// One switch, wherever a globe is on screen: Trends, Places and the Globe tab.
+document.querySelectorAll<HTMLButtonElement>('[data-globe-view]').forEach((b) => {
+  b.addEventListener('click', () => void setGlobeView((b.dataset.globeView === 'nasa' ? 'nasa' : 'photo') as GlobeView));
+});
 (document.getElementById('globe-search') as HTMLFormElement).addEventListener('submit', (ev) => {
   ev.preventDefault();
   const input = document.getElementById('globe-search-input') as HTMLInputElement;
@@ -1127,6 +1290,18 @@ async function enterGlobeTab() {
   const p = globePlace;
   setMode('trends');
   openTrendAt({ name: p.name, lat: p.lat, lon: p.lon, mode: 'point' }, 't2m');
+});
+// Build a hologram of the place on the globe, like the Build tab does.
+(document.getElementById('globe-place-build') as HTMLButtonElement).addEventListener('click', () => {
+  const p = globePlace;
+  if (!p) return;
+  runConstruct(p.name, p.city);
+});
+// Compare the place on the globe with other places, using the same NASA variable and test.
+(document.getElementById('globe-place-compare') as HTMLButtonElement).addEventListener('click', () => {
+  const p = globePlace ?? globePick;
+  setMode('trends');
+  openCompare(p ? { name: p.name, lat: p.lat, lon: p.lon, mode: 'point' } : undefined);
 });
 
 const globeAskCtx = {
@@ -1719,6 +1894,8 @@ const signals = new SignalLayers(stage.camera, stage.renderer, () => stage.earth
 stage.earth.group.add(signals.group);
 /** Non-null while the camera is out in orbit showing the whole planet. */
 let globe: { lat: number; lon: number; dist: number; spin: boolean } | null = null;
+/** True once the camera has landed on a place: the orbit hold must stop snapping it back. */
+let globeLanded = false;
 /** Far enough out that the whole disc fits on screen (32° vertical FOV, with margin). */
 const GLOBE_DIST = 2.6e7;
 /** Tall, narrow screens need the planet further away to fit across. */
@@ -1737,6 +1914,7 @@ async function goGlobe(focus?: { lat: number; lon: number }) {
   updateReconBtn();
   landmarkList.querySelectorAll('button').forEach((b) => b.classList.remove('is-on'));
   earthOn();
+  updateGlobeViewToggles('photo', true);
   ui.closeCard();
   signals.select(null);
   stage.setIsolate(0, 0);
@@ -1783,38 +1961,43 @@ function updateGlobeKind() {
   $('model-kind').textContent = bits.length ? `Live: ${bits.join(' · ')}` : 'Live signals off';
 }
 
-// Layer switches in the Places panel.
-const sigBox = $('signals');
-for (const id of ['quakes', 'events'] as LayerId[]) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = `sig sig-${id}`;
-  b.dataset.layer = id;
-  b.setAttribute('aria-pressed', 'false');
-  b.innerHTML = '<i class="dot" aria-hidden="true"></i><span class="t"></span><span class="m"></span>';
-  b.querySelector('.t')!.textContent = LAYER_META[id].label;
-  b.addEventListener('click', () => {
-    const st = signals.state(id);
-    setLayer(id, st.status === 'failed' ? true : !st.on);
-  });
-  sigBox.appendChild(b);
+// Layer switches: the same live layers in the Places panel and in the Globe tab.
+const sigBoxes = [$('signals'), $('globe-signals')].filter(Boolean) as HTMLElement[];
+for (const box of sigBoxes) {
+  for (const id of ['quakes', 'events'] as LayerId[]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `sig sig-${id}`;
+    b.dataset.layer = id;
+    b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<i class="dot" aria-hidden="true"></i><span class="t"></span><span class="m"></span>';
+    b.querySelector('.t')!.textContent = LAYER_META[id].label;
+    b.addEventListener('click', () => {
+      const st = signals.state(id);
+      setLayer(id, st.status === 'failed' ? true : !st.on);
+    });
+    box.appendChild(b);
+  }
 }
 function setLayer(id: LayerId, on: boolean) { signals.set(id, on); }
 function renderLayers() {
   for (const id of ['quakes', 'events'] as LayerId[]) {
     const st = signals.state(id);
-    const b = sigBox.querySelector<HTMLButtonElement>(`[data-layer="${id}"]`)!;
-    b.setAttribute('aria-pressed', String(st.on));
-    b.dataset.status = st.status;
-    const m = b.querySelector('.m')!;
-    if (st.status === 'loading') m.textContent = 'loading…';
-    else if (st.status === 'failed') m.textContent = `unavailable: ${st.error?.slice(0, 60)} · tap to retry`;
-    else if (st.data) {
-      const age = Date.now() - Date.parse(st.data.updated);
-      const stale = id === 'quakes' ? age > 3 * 3600e3 : age > 3 * 86400e3;
-      m.textContent = `${st.data.signals.length} · ${LAYER_META[id].blurb} · ${st.data.source.replace(' Earthquake Hazards Program', '')} · updated ${ago(st.data.updated)}${stale ? ' (stale)' : ''}`;
-      b.title = `${st.data.name}. Source: ${st.data.source} (${st.data.license}). Feed updated ${new Date(st.data.updated).toUTCString()}, fetched ${ago(st.data.fetchedAt)}.`;
-    } else m.textContent = LAYER_META[id].blurb;
+    for (const box of sigBoxes) {
+      const b = box.querySelector<HTMLButtonElement>(`[data-layer="${id}"]`);
+      if (!b) continue;
+      b.setAttribute('aria-pressed', String(st.on));
+      b.dataset.status = st.status;
+      const m = b.querySelector('.m')!;
+      if (st.status === 'loading') m.textContent = 'loading…';
+      else if (st.status === 'failed') m.textContent = `unavailable: ${st.error?.slice(0, 60)} · tap to retry`;
+      else if (st.data) {
+        const age = Date.now() - Date.parse(st.data.updated);
+        const stale = id === 'quakes' ? age > 3 * 3600e3 : age > 3 * 86400e3;
+        m.textContent = `${st.data.signals.length} · ${LAYER_META[id].blurb} · ${st.data.source.replace(' Earthquake Hazards Program', '')} · updated ${ago(st.data.updated)}${stale ? ' (stale)' : ''}`;
+        b.title = `${st.data.name}. Source: ${st.data.source} (${st.data.license}). Feed updated ${new Date(st.data.updated).toUTCString()}, fetched ${ago(st.data.fetchedAt)}.`;
+      } else m.textContent = LAYER_META[id].blurb;
+    }
   }
   updateGlobeKind();
 }
@@ -1860,7 +2043,7 @@ canvas.addEventListener('pointermove', (ev) => {
   const dx = ev.clientX - globeDrag.x, dy = ev.clientY - globeDrag.y;
   globeDrag.x = ev.clientX; globeDrag.y = ev.clientY;
   globeDrag.moved += Math.abs(dx) + Math.abs(dy);
-  if (globe && !stage.flying) {
+  if (globe && !stage.flying && !globeLanded) {
     const k = 0.16 * (globe.dist / ORBIT);
     globe.lon = ((globe.lon - dx * k + 540) % 360) - 180;
     globe.lat = THREE.MathUtils.clamp(globe.lat + dy * k, -75, 75);
@@ -1874,8 +2057,11 @@ canvas.addEventListener('pointerup', (ev) => {
   const s = signals.pick(ev.clientX, ev.clientY);
   if (s) { openSignal(s); if (globe) globe.spin = false; }
 });
+// A drag that leaves the canvas must still end, or the globe stays stuck in drag mode.
+window.addEventListener('pointerup', () => { globeDrag = null; });
+window.addEventListener('pointercancel', () => { globeDrag = null; });
 canvas.addEventListener('wheel', (ev) => {
-  if (!globe || stage.flying) return;
+  if (!globe || stage.flying || globeLanded) return;
   globe.dist = THREE.MathUtils.clamp(globe.dist * Math.exp(ev.deltaY * 0.0012), 3.2e6, 3.4e7);
   ev.preventDefault();
 }, { passive: false });
@@ -1902,7 +2088,10 @@ window.addEventListener('keydown', (e) => {
     prev?.(dt, t);
     if (!earthActive) return;
     signals.update(t);
-    if (globe && !stage.flying) {
+    if (globe && globeLanded && !stage.flying) {
+      // Landed on a place: hand the camera back so the viewer can look around.
+      stage.controls.enabled = true;
+    } else if (globe && !stage.flying) {
       // Eastward rotation: the ground moves left as the planet turns under the camera.
       if (globe.spin && !globeDrag) globe.lon = ((globe.lon - dt * 2.2 + 540) % 360) - 180;
       stage.controls.autoRotate = false;
@@ -1913,8 +2102,9 @@ window.addEventListener('keydown', (e) => {
       // On wide screens, centre the planet in the space right of the panel, not behind it.
       const w = canvas.clientWidth, h = canvas.clientHeight;
       // Phones in Places: the panel sits on top, so lower the planet into the space under it instead.
-      const shiftX = mode === 'places' && w > 900 ? Math.min(230, w * 0.15) : 0;
-      const shiftY = mode === 'places' && w <= 760 ? h * 0.17 : 0;
+      const panelMode = mode === 'places' || mode === 'trends';
+      const shiftX = panelMode && w > 900 ? Math.min(230, w * 0.15) : 0;
+      const shiftY = panelMode && w <= 760 ? h * 0.17 : 0;
       if (shiftX || shiftY) stage.camera.setViewOffset(w, h, -shiftX, -shiftY, w, h); else stage.camera.clearViewOffset();
     }
   };
@@ -1937,6 +2127,8 @@ if (new URLSearchParams(location.search).has('debug')) (window as unknown as Rec
 
 // The NASA trend screen is the front door. The hologram modes stay one tap away.
 initTrends();
+// The ask boxes only appear once we know a keyed model is live.
+void refreshGlobeAgent();
 
 // Open straight into a shared view: ?place=taj&lens=thermal or ?at=lat,lon,Name
 {
