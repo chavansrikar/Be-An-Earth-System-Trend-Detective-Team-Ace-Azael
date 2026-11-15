@@ -588,6 +588,21 @@ Run with Playwright against the local Vercel dev server on port 3001:
 - `/api/construct` plans Charminar.
 - Comparison and globe changes are re-verified after the final deployment.
 
+After the comparison and globe work (commit `6e37252`, deployed 15 November 2026) the live app was re-checked end to end:
+
+| Check | Live result |
+|---|---|
+| Default trend | Amazon Basin · Air temperature · 1996–2025 · **+0.32 °C/decade** · highly significant · 30 complete years |
+| Comparison | Amazon Basin **+0.32, p = 0.007** vs Sahel **−0.10, p = 0.412** · summary, 7 limits, CSV |
+| Globe | **Photoreal · Cesium ion**, layer controls visible, `atlas.globe` ready in ~5 s |
+| Spin | longitude fell 4.18° in 2.5 s → eastward |
+| NASA switch | panel reads **NASA Blue Marble**, city lights and Live clouds apply, switch back works |
+| Typed landmark | **Eiffel Tower → 720 m** |
+| Places → Compare | switches to Trends with comparison seeded |
+| Mobile 474×1008 | sticky heading visible under the bar, never clipped |
+
+No console or page errors in any live run.
+
 ### 13.4 Known service behaviour
 
 - NASA POWER GDD parameters return HTTP 500 and are excluded.

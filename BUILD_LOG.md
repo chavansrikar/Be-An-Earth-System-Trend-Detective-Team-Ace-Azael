@@ -178,6 +178,27 @@ Added after commit `9336359` and verified locally before the next production dep
 - **`PRESENTATION.md`** added: complete feature tour, NASA and supplementary data tables, architecture, statistics, comparison, globe depth table, AI safety, API reference, slide outline, six-minute demo script, verification record, limitations, run/deploy commands and judge Q&A.
 - **Checks:** `npx tsc --noEmit`, `npx tsc -p api/tsconfig.json --noEmit`, `npm run build` pass. Browser checks at 1440×900, 390×844 and 474×1008 show no console or page errors.
 
+### Production deployment `6e37252` (14–15 November 2026)
+
+Pushed to `origin/main` and deployed through the Vercel Git integration to <https://atlas-ace-azael.vercel.app/>. Live checks after the deployment:
+
+| Check | Result |
+|---|---|
+| `/api/status` | `provider: gemini`, agent and vision `gemini-3.5-flash`, fast `gemini-3.5-flash-lite`, `earth.kind = ion` |
+| Default trend | Amazon Basin · Air temperature · 1996–2025 · **+0.32 °C/decade** · “Highly significant” · 30 complete years · 9 samples |
+| Comparison (Amazon Basin vs Sahel) | 2 places compared · Amazon **+0.32 °C/dec, p = 0.007, significant** · Sahel **−0.10 °C/dec, p = 0.412, not significant** · brief summary + 7 limits + comparison CSV |
+| Globe entry | `mode-globe earth globe` · panel reads **Photoreal · Cesium ion** · layer controls visible · `atlas.globe` ready in ~5 s |
+| Spin direction | `atlas.globe.lon` fell by 4.18° in 2.5 s → **eastward** rotation |
+| NASA view switch | `globe-fallback` class, panel reads **NASA Blue Marble**, city lights and Live clouds apply |
+| Back to Photoreal | `earth globe` class restored, panel reads **Photoreal · Cesium ion** |
+| Typed landmark | **Eiffel Tower → “Descending to Eiffel Tower · 720 m view”** |
+| Places → Compare | **Compare with other places** switches to Trends with the compare view active and the place seeded |
+| Mobile 474×1008 | sticky trend heading fully visible between the bar (bottom 98 px) and the panel (top 118 px) while the panel is scrolled |
+
+No console errors and no page errors in any live run.
+
+> Note for future deploys: the Vercel CLI returned `Not authorized` for `vercel deploy --prod` in this session, so the deployment was made by pushing to `origin/main`, which the linked Vercel project builds automatically. A stray project named `atlas-live-repo` exists in the team scope from earlier CLI runs; the production app is `atlas-ace-azael`.
+
 ## Known limitations
 
 - The NASA, USGS, ECCC and geocoding endpoints are free and keyless but can be rate-limited or briefly unavailable. Photoreal tiles use a Cesium ion token on its free Community plan; the Globe's LLM box needs a free keyed model provider.
