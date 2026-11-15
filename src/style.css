@@ -334,6 +334,8 @@ body.globe .look, body.globe .place-actions { display: none; }
 #globe { position: fixed; inset: 0; z-index: 2; background: radial-gradient(circle at 62% 42%, #16306b 0%, #0a1128 52%, #050815 100%); }
 #globe canvas { display: block; width: 100%; height: 100%; }
 body:not(.mode-trends):not(.mode-globe) #globe { display: none; }
+/* Places shows the NASA globe when the fallback is on: this has to beat the rule above. */
+body.earth-fallback:not(.mode-trends):not(.mode-globe) #globe { display: block; }
 /* Photoreal Globe uses #stage; the NASA canvas must not sit on top of it. */
 body.mode-globe:not(.globe-fallback) #globe { display: none; }
 body.mode-globe.globe-fallback #globe { display: block; }
