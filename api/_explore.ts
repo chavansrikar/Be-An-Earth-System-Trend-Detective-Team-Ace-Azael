@@ -341,3 +341,20 @@ export async function trendMap(opts: {
   if (mapCache.size > 60) mapCache.delete(mapCache.keys().next().value as string);
   return data;
 }
+
+/** Shared query validation for the scan and the map (lat, lon, start, end). */
+export function readCommon(query: Record<string, string | string[]>) {
+  const lat = Number(query.lat);
+  const lon = Number(query.lon);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw new HttpError(400, 'lat must be between -90 and 90');
+  if (!Number.isFinite(lon) || lon < -180 || lon > 180) throw new HttpError(400, 'lon must be between -180 and 180');
+  const maxEnd = Math.min(new Date().getUTCFullYear() - 1, 2025);
+  const end = Number(query.end) || maxEnd;
+  const start = Number(query.start) || Math.max(1981, end - 29);
+  if (!Number.isInteger(start) || !Number.isInteger(end)) throw new HttpError(400, 'start and end must be years');
+  if (start < 1981) throw new HttpError(400, 'NASA POWER monthly data start in 1981');
+  if (end > maxEnd) throw new HttpError(400, `choose an end year of ${maxEnd} or earlier so the year is complete`);
+  if (end - start < 9) throw new HttpError(400, 'choose at least 10 years');
+  if (end - start > 44) throw new HttpError(400, 'choose at most 45 years');
+  return { lat, lon, start, end };
+}

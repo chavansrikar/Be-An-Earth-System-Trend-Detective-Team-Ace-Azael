@@ -1,11 +1,17 @@
 import { send, HttpError } from './_nebius.js';
 import { trend, VARIABLE_IDS, type VariableId } from './_trends.js';
+import { sweep, trendMap, readCommon } from './_explore.js';
 
 /**
  * GET /api/trends?variable=t2m&lat=17.385&lon=78.487&start=1996&end=2025&mode=point&name=Hyderabad
  *
  * Returns a NASA POWER monthly + annual time series, Sen's slope, Mann-Kendall significance and
  * the source metadata. Results are cached for 12 hours server-side and at the CDN.
+ *
+ * The same function serves the two detective views, so the deployment stays inside Vercel's
+ * Hobby limit of 12 functions:
+ *   GET /api/trends?view=sweep&lat=17.385&lon=78.487&start=1996&end=2025&name=Hyderabad
+ *   GET /api/trends?view=map&variable=humidity&lat=17.9&lon=79.6&span=10&start=1996&end=2025
  */
 export default async function handler(
   req: { method: string; query: Record<string, string | string[]> },
@@ -16,6 +22,23 @@ export default async function handler(
 ) {
   try {
     if (req.method !== 'GET') throw new HttpError(405, 'GET only');
+
+    const view = String(req.query.view || '');
+    if (view === 'sweep' || view === 'map') {
+      const { lat, lon, start, end } = readCommon(req.query);
+      const name = req.query.name ? String(req.query.name) : undefined;
+      let data: unknown;
+      if (view === 'sweep') {
+        data = await sweep({ lat, lon, start, end, name });
+      } else {
+        const v = String(req.query.variable || 't2m') as VariableId;
+        if (!VARIABLE_IDS.includes(v)) throw new HttpError(400, `variable must be one of ${VARIABLE_IDS.join(', ')}`);
+        data = await trendMap({ variable: v, lat, lon, span: Number(req.query.span) || 8, start, end, name });
+      }
+      res.setHeader?.('Cache-Control', 'public, s-maxage=43200, stale-while-revalidate=2592000');
+      res.status(200).json(data);
+      return;
+    }
 
     const variable = String(req.query.variable || 't2m') as VariableId;
     if (!VARIABLE_IDS.includes(variable)) throw new HttpError(400, `variable must be one of ${VARIABLE_IDS.join(', ')}`);
@@ -40,7 +63,7 @@ export default async function handler(
     res.setHeader?.('Cache-Control', 'public, s-maxage=43200, stale-while-revalidate=2592000');
     res.status(200).json(data);
   } catch (err) {
-    if (err instanceof HttpError && err.status === 502) res.setHeader?.('Cache-Control', 'no-store');
+    if (err instanceof HttpError && err.status >= 500) res.setHeader?.('Cache-Control', 'no-store');
     send(res, err);
   }
 }
