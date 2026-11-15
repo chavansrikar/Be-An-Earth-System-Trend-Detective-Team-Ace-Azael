@@ -45,7 +45,8 @@ The Space Apps challenge asks for an Earth-system trend detective: a way to find
   - Download the annual + monthly series as CSV.
   - Open the exact NASA POWER API request and the NASA POWER Data Access Viewer.
 - **NASA imagery:** year/month scrubber; Blue Marble or MODIS Terra base; monthly MERRA-2 temperature, precipitation, wind and GLDAS soil-moisture overlays where a faithful layer exists.
-- **Ask ATLAS:** a plain-language explanation from a live model. The model receives only a pre-computed fact sheet.
+- **Ask ATLAS:** a plain-language explanation from a live model. The model receives only a pre-computed fact sheet, and it is told to give the complete picture — what is happening, where and when, the key numbers with their source and the limits — and never to call a change unusual or caused without support.
+- **Session history:** every question and answer of the session, with timestamps, in the Trends tab and in the Globe tab, with a **Clear session** button.
 - **Comparison mode:** described in section 7.
 
 ### 3.2 Places
@@ -58,6 +59,27 @@ The Space Apps challenge asks for an Earth-system trend detective: a way to find
 - **Open in Trend Detective** carries the place into the full analysis.
 - **Compare with other places** opens the comparison view seeded with the current place.
 - Preserved ATLAS Live layers remain: live signals, sun position, city builds, earthquake/fire/storm layers.
+
+### 3.0 One globe, one set of controls, everywhere
+
+The **Photoreal 3D / NASA Blue Marble** switch now appears on every screen that shows a
+globe — Trends, Places and the Globe tab — and each screen remembers its own choice. The
+same controls are available on all of them:
+
+| Control | Trends | Places | Globe |
+|---|---|---|---|
+| Renderer switch (Photoreal 3D / NASA Blue Marble) | yes | yes | yes |
+| Spin, City lights, Live clouds, Reset | yes | yes | yes |
+| Live signals (USGS earthquakes, NASA EONET events) | yes | yes | yes |
+| Lens row (photo, hologram, thermal, night, riso) | yes | yes | yes |
+| Search and fly-to | yes | yes | yes |
+| Ask ATLAS + session history | yes | yes | yes |
+| Trends record and comparison | yes | yes | yes (Compare button) |
+
+City lights and Live clouds are NASA layers: if you press them while the photoreal renderer
+is on, the app switches renderer and applies the layer. The Trends tab can sit on the
+photoreal Earth behind the data panel; the NASA GIBS year/month imagery belongs to the
+Blue Marble view and the panel says so.
 
 ### 3.3 Globe (third tab, after Places)
 
@@ -358,15 +380,35 @@ The app geocodes the place, reads its type, then chooses a camera distance:
 
 Curated landmarks override agent coordinates where needed: Eiffel Tower 720 m, Statue of Liberty 330 m. Large areas stay north-up and top-down; cities and landmarks tilt into the 3D approach. **Back to orbit** returns to the whole planet.
 
-### 8.3 Spin direction
+### 8.3 Spin, drag and the map orientation
 
-The shared frame loop in `src/main.ts` turns the photoreal globe eastward:
+**The orientation bug (fixed).** The Cesium/Google renderer is reoriented by a plugin that
+turns the planet so that **+z is north and −x is east** — which is *not* the same as +y being
+up. The camera code assumed the old frame, so the whole-Earth view was rendered from the
+wrong side of the local up axis: north pointed down and east pointed left, and dragging the
+cursor felt reversed. The camera now reads the live frame out of the reoriented tiles (the
+Earth's centre, the local up, north and east, using the library's own ellipsoid) and is
+placed on the real up axis with north up.
+
+Measured after the fix, projecting real surface points through the tile transform and the
+camera: the photoreal globe and the NASA globe now agree to **≤3 px on a 1440 px screen** for
+the same centre.
+
+**Spin.** Both globes turn **eastward** at the same rate (2.2°/s):
 
 ```ts
-globe.lon = ((globe.lon - dt * 2.2 + 540) % 360) - 180;
+globe.lon = ((globe.lon - dt * 2.2 + 540) % 360) - 180;   // photoreal
+this.viewLon = ((this.viewLon - this.spinRate * dt + 540) % 360) - 180;  // NASA
 ```
 
-The earlier build added to longitude and appeared to rotate backwards. The sign is now negative, so the ground moves left as the planet turns under the camera. Verified by sampling the exposed `atlas.globe.lon`: it decreases over time while spin is on. Dragging pauses the spin; Spin toggles it; Reset restores it.
+Live measurement: `atlas.globe.lon` fell 6.61° in 3 s.
+
+**Drag.** In both renderers the ground follows the cursor: dragging right decreases the
+centre longitude, so the surface moves right. Live measurement: a 300 px drag to the right
+moved the centre longitude by −99.96°.
+
+A drag that leaves the canvas now ends cleanly (window-level pointer listeners), so the
+globe can never get stuck in drag mode.
 
 ### 8.4 Tokens and fallback
 

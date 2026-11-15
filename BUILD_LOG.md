@@ -265,6 +265,49 @@ Two related bugs fixed in the same pass:
 
 ### Verified
 
+Three Playwright agents tested the build in parallel (globe orientation and controls, the
+Trends and session features, and a six-viewport responsive audit), plus a live run after
+the deploy.
+
+**Globe parity, measured by projecting real surface points through the tile transform and
+the camera (1440×900, globe centred on 150°E, Australia at 133°E):**
+
+| Reference point | Photoreal | NASA Blue Marble | Difference |
+|---|---|---|---|
+| Australia centre (25°S, 133°E) | −134 px | −131 px | 3 px |
+| Australia west (25°S, 120°E) | −223 px | −220 px | 3 px |
+| Australia east (25°S, 145°E) | −40 px | −40 px | 0 px |
+| North of centre (0°, 150°E) | −208 px | −206 px | 2 px |
+| South of centre (40°S, 150°E) | +130 px | +128 px | 2 px |
+| East of centre (25°S, 160°E) | +80 px | +79 px | 1 px |
+
+The two renderers now show the same geography in the same place on screen (≤3 px).
+
+**Live, on the deployed build:**
+
+| Check | Result |
+|---|---|
+| Spin, photoreal | `lon` 69.11 → 62.50 in 3 s → **−6.61°, eastward** |
+| Cursor drag right 300 px | `lon` 62.38 → −37.58 → **−99.96°, the ground follows the cursor** |
+| Globe panel | renderer switch, live signals (2), lens row (5), session history, Spin / City lights / Live clouds / Reset — all present |
+| Places → NASA Blue Marble | the NASA canvas renders at 1440×900 (was blank before the specificity fix) |
+| Trends | Photoreal 3D behind the panel, and back to Blue Marble, no errors |
+
+**Responsive audit, six viewports (360×740, 390×844, 474×1008, 768×1024, 1024×768, 1440×900):**
+
+| Defect found | Fix |
+|---|---|
+| The result card covered the trend panel by 140–148 px on phones | the card is a bottom sheet and the panel makes room (`body.result-open`) |
+| The hologram title card printed through the Places panel | `body.mode-places .intro { display: none }` |
+| The heading slid under the bar on tablet and desktop | `.trend-head` is sticky at every width now |
+| The Places header wrapped to three rows and overlapped the panel at 360 px | the status chip is hidden below 430 px |
+| The landmark list collapsed to 0 px height | `min-height: 150px` and the panel scrolls |
+| The imagery row forced the panel to scroll sideways | single-column imagery row, no horizontal overflow |
+| 19–29 tap targets under 32 px | selects, presets, switches and globe buttons grew to 32–34 px; preset labels wrap instead of clipping |
+
+After the fixes: **0 overlaps, 0 clipped text, 0 horizontal overflow** in the three tabs at
+all six viewports, and no console or page errors in any run.
+
 - Trends default: Amazon Basin, air temperature, 1996–2025, **+0.32 °C/decade**, p = 0.007, 30 years.
 - Comparison with 2 places (Amazon Basin +0.32 p = 0.007, Sahel −0.10 p = 0.412) and with 4
   places (Fraser Valley +0.32 p = 0.035), 7 limits, CSV downloaded.
