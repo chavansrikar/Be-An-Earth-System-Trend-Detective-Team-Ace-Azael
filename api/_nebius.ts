@@ -318,7 +318,15 @@ export async function chat(body: Record<string, unknown>) {
   const role = (['agent', 'vision', 'fast'] as const).find((k) => body.model === MODELS[k]) ?? 'agent';
   // Overloaded (503), rate-limited or out of quota (429), retired (404): try the next live model,
   // then any other provider that has a key. Each model has its own quota on free tiers.
-  const plan: { p: Provider; model: string }[] = [String(body.model), ...ALTS[role].filter((id) => id !== body.model)].slice(0, 6).map((model) => ({ p: PROVIDER!, model }));
+  const ranked = [String(body.model), ...ALTS[role].filter((id) => id !== body.model)].slice(0, 6);
+  // Each model has its own quota on the free tier, so a model from another role can still
+  // answer when the agent model is out of quota (for example the lite model).
+  for (const other of ['fast', 'agent', 'vision'] as const) {
+    if (role === other) continue;
+    const id = MODELS[other];
+    if (id && id !== 'unset' && !ranked.includes(id)) ranked.push(id);
+  }
+  const plan: { p: Provider; model: string }[] = ranked.map((model) => ({ p: PROVIDER!, model }));
   for (const other of PROVIDERS) if (other.key && other !== PROVIDER) plan.push({ p: other, model: other[role] });
   let last = '';
   // Models that just said "quota used up" are skipped for a while (per warm instance).
@@ -353,7 +361,20 @@ export async function chat(body: Record<string, unknown>) {
     if (![404, 429, 500, 503].includes(r.status)) throw new HttpError(r.status, last);
     if (r.status !== 429 && i === 0) await new Promise((res) => setTimeout(res, 600));
   }
-  throw new HttpError(503, /\b429\b/.test(last) ? `The model quota is used up for today (${last.slice(0, 120)})` : last);
+  // Every keyed model is out of quota or unavailable. Fall back to the keyless open model so
+  // the app still answers; tools are dropped because the anonymous endpoint is text-only.
+  if (KEYLESS) {
+    try {
+      const { tools, tool_choice, ...rest } = body as Record<string, unknown>;
+      const j = await chatKeyless({ ...rest, max_tokens: Math.min(Number(body.max_tokens ?? 1000), 900) });
+      j.servedBy = `${KEYLESS.label} · ${KEYLESS.model} · keyless fallback`;
+      return j;
+    } catch { /* the error below is the honest one */ }
+  }
+  const quota = /\b429\b/.test(last);
+  throw new HttpError(503, quota
+    ? `The keyed model quota is used up for today (${last.slice(0, 120)}). The keyless fallback did not answer either.`
+    : last);
 }
 
 /**
