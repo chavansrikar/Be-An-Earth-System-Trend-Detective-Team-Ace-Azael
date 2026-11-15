@@ -7,6 +7,7 @@ Pick a NASA Earth variable and a place. ATLAS draws the 30-year record, measures
 - **Live:** <https://atlas-ace-azael.vercel.app/>
 - **Repository:** <https://github.com/chavansrikar/Be-An-Earth-System-Trend-Detective-Team-Ace-Azael>
 - **Team:** Ace Azael
+- **Start here:** [`SOLUTION.md`](SOLUTION.md) — what the project solves, what NASA expected, and how this answers it. [`PRESENTATION.md`](PRESENTATION.md) is the deck, demo script and judge Q&A.
 
 ## The short version
 
@@ -262,6 +263,7 @@ public/earth/         local 2048 px Blue Marble + VIIRS city lights (instant fir
 NASA_RESOURCES.md     every endpoint, field, licence and limitation
 BUILD_LOG.md          what was actually built, tested and deployed
 PRESENTATION.md       complete presentation guide: features, data, demo script, Q&A
+SOLUTION.md          what it solves, what NASA expected, and our solution
 ```
 
 ## Verified examples
