@@ -8,6 +8,7 @@ Pick a NASA Earth variable and a place. ATLAS draws the 30-year record, measures
 - **Repository:** <https://github.com/chavansrikar/Be-An-Earth-System-Trend-Detective-Team-Ace-Azael>
 - **Team:** Ace Azael
 - **Start here:** [`SOLUTION.md`](SOLUTION.md) — what the project solves, what NASA expected, and how this answers it. [`PRESENTATION.md`](PRESENTATION.md) is the deck, demo script and judge Q&A.
+- **Pitch deck:** [`docs/ATLAS-EARTH-Pitch-Deck.pptx`](docs/ATLAS-EARTH-Pitch-Deck.pptx) — 6 slides, 16:9, with real screenshots of the deployed app.
 
 ## The short version
 
@@ -264,6 +265,7 @@ NASA_RESOURCES.md     every endpoint, field, licence and limitation
 BUILD_LOG.md          what was actually built, tested and deployed
 PRESENTATION.md       complete presentation guide: features, data, demo script, Q&A
 SOLUTION.md          what it solves, what NASA expected, and our solution
+docs/                 the 6-slide pitch deck (.pptx) and its generator
 ```
 
 ## Verified examples
