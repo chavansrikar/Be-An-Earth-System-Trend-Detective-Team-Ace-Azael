@@ -54,8 +54,8 @@ let mapGeom: { w: number; h: number } | null = null;
 
 export function initExplore(opts: { openSingle: (place: Place, variable: VariableId) => void }) {
   openSingle = opts.openSingle;
-  $('map-close').addEventListener('click', () => { $('map-result').hidden = true; });
-  $('sweep-close').addEventListener('click', () => { $('sweep-result').hidden = true; });
+  $('map-close').addEventListener('click', () => { $('map-result').hidden = true; document.body.classList.remove('result-open'); });
+  $('sweep-close').addEventListener('click', () => { $('sweep-result').hidden = true; document.body.classList.remove('result-open'); });
   $('map-csv').addEventListener('click', downloadMapCsv);
   $('sweep-csv').addEventListener('click', downloadSweepCsv);
   const canvas = $<HTMLCanvasElement>('map-canvas');
@@ -161,6 +161,7 @@ async function getJson<T>(url: string): Promise<T> {
 function renderSweep(r: SweepResult) {
   hideExplore();
   $('sweep-result').hidden = false;
+  document.body.classList.add('result-open');
   $('sweep-title').textContent = `What is changing at ${r.place.name}?`;
   $('sweep-sub').textContent = `${coord(r.place.lat, r.place.lon)} · one NASA POWER grid cell · ${r.period.start}–${r.period.end} · ${r.tested} variables tested`;
   $('sweep-headline').textContent = `${r.significant} of ${r.tested}`;
@@ -254,6 +255,7 @@ function downloadSweepCsv() {
 function renderMap(r: TrendMapResult) {
   hideExplore();
   $('map-result').hidden = false;
+  document.body.classList.add('result-open');
   const s = r.summary;
   const d = decimalsFor(r.variable.id);
   $('map-kicker').textContent = `NASA POWER · ${r.variable.label} · trend map`;
