@@ -3,6 +3,7 @@ import {
   PRESETS, VARIABLES, GROUPS, variableById, fetchTrend, explain, fmt, decimalsFor, trendStrength,
   type Place, type TrendResult, type VariableId, type VariableGroup,
 } from './trends';
+import { initExplore, runMap, runSweep, hideExplore, showExplore, hasMap } from './explore-ui';
 
 /**
  * The trend detective screen. NASA POWER supplies every number; NASA GIBS supplies the monthly
@@ -41,7 +42,7 @@ interface ChartPoint { x: number; y: number; label: string; value: string }
 let chartMeta: { points: ChartPoint[]; left: number; right: number } | null = null;
 
 interface CompareEntry { place: Place; result?: TrendResult; error?: string }
-type TrendView = 'single' | 'compare';
+type TrendView = 'single' | 'compare' | 'map' | 'sweep';
 const compare = {
   view: 'single' as TrendView,
   count: 3,
@@ -68,8 +69,89 @@ export function initTrends() {
   buildComparePresets();
   buildCompareRows();
   bindEvents();
+  initExplore({ openSingle: openSingleFromExplore });
+  bindCases();
   paintActive();
   void probeAi();
+}
+
+/**
+ * Case files: three guided demonstrations, as the challenge suggests, each answering one of the
+ * detective's questions with live NASA data. The note explains what to look for; the numbers
+ * on screen always come from the live run, never from this text.
+ */
+const CASES: Record<string, { view: TrendView; place: Place; variable: VariableId; start: number; end: number; span?: number; note: string }> = {
+  dimming: {
+    view: 'sweep', place: { name: 'Hyderabad', lat: 17.385, lon: 78.487, mode: 'point' }, variable: 'radiation', start: 1996, end: 2025,
+    note: 'What is changing here? ATLAS tests every NASA POWER variable over Hyderabad at once and corrects for running that many tests. Look at which variables survive the correction, then click one to open its record. A trend says what changed, not why: check published research before naming a cause.',
+  },
+  opposite: {
+    view: 'map', place: { name: 'Telangana', lat: 17.9, lon: 79.6, mode: 'point' }, variable: 'humidity', start: 1996, end: 2025, span: 10,
+    note: 'Where is it changing? Every NASA POWER grid cell in a 10° box around Telangana gets its own test. The challenge warns that one variable can rise in one place and fall in another: look for dotted cells of both colours. A single regional average would hide that.',
+  },
+  amazon: {
+    view: 'single', place: { name: 'Amazon Basin', lat: -3.5, lon: -62.5, mode: 'region' }, variable: 't2m', start: 1996, end: 2025,
+    note: 'Is the change real? Sen\'s slope gives the rate with its 95% interval; Mann–Kendall gives the p-value, shown again corrected for autocorrelation; Pettitt looks for the year it shifted. Then switch the variable to Rainfall, or open Map the change, to see the drying side of the story.',
+  },
+};
+
+function bindCases() {
+  $('trend-cases').addEventListener('click', (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button[data-case]');
+    if (!b) return;
+    const c = CASES[b.dataset.case || ''];
+    if (!c) return;
+    document.querySelectorAll<HTMLElement>('#trend-cases button').forEach((x) => x.classList.toggle('is-on', x === b));
+    const note = $('trend-case-note');
+    note.textContent = c.note;
+    note.hidden = false;
+    $<HTMLSelectElement>('trend-start').value = String(c.start);
+    $<HTMLSelectElement>('trend-end').value = String(c.end);
+    if (c.span) $<HTMLSelectElement>('map-span').value = String(c.span);
+    state.variable = c.variable;
+    activeGroup = variableById(c.variable).group;
+    buildVariables();
+    setView(c.view);
+    setPlace(c.place);
+    if (c.view === 'map') runMapView();
+    else if (c.view === 'sweep') runSweepView();
+    else { state.start = c.start; state.end = c.end; void run(); }
+  });
+}
+
+/** A click on a map cell or a scanned variable opens the full single-place record. */
+function openSingleFromExplore(place: Place, variable: VariableId) {
+  setView('single');
+  state.variable = variable;
+  activeGroup = variableById(variable).group;
+  buildVariables();
+  setPlace(place);
+  void run();
+}
+
+/** Run whichever detective view is open for the current place. */
+function runCurrent() {
+  if (compare.view === 'map') runMapView();
+  else if (compare.view === 'sweep') runSweepView();
+  else void run();
+}
+
+function runMapView() {
+  const start = Number($<HTMLSelectElement>('trend-start').value);
+  const end = Number($<HTMLSelectElement>('trend-end').value);
+  state.start = start;
+  state.end = end;
+  if (globe) globe.setMarker(state.place.lat, state.place.lon, state.place.name);
+  void runMap(state.place, state.variable, start, end, Number($<HTMLSelectElement>('map-span').value) || 8, $('trend-status'));
+}
+
+function runSweepView() {
+  const start = Number($<HTMLSelectElement>('trend-start').value);
+  const end = Number($<HTMLSelectElement>('trend-end').value);
+  state.start = start;
+  state.end = end;
+  if (globe) globe.setMarker(state.place.lat, state.place.lon, state.place.name);
+  void runSweep(state.place, start, end, $('trend-status'));
 }
 
 export function setTrendMode(on: boolean) {
@@ -248,7 +330,7 @@ function ensureGlobe() {
     if (placePick) { placePick(lat, lon); return; }
     if (state.loading || !globeVisible) return;
     setPlace({ name: coordName(lat, lon), lat, lon, mode: 'point' }, false);
-    void run();
+    runCurrent();
   };
   globe.onStatus = (text) => {
     $('trend-imagery-note').textContent = text;
@@ -321,6 +403,11 @@ function buildVariables() {
       state.variable = v.id;
       paintActive();
       // Supersede any in-flight request: the newest variable wins.
+      if (compare.view === 'map') {
+        if (hasMap()) runMapView();
+        return;
+      }
+      if (compare.view === 'sweep') return;
       if (compare.view === 'compare') {
         if (compare.entries.length) void runCompare();
         else updateOverlay();
@@ -345,7 +432,7 @@ function buildPresets() {
     b.lastElementChild!.textContent = p.blurb;
     b.addEventListener('click', () => {
       setPlace({ name: p.name, lat: p.lat, lon: p.lon, mode: p.mode });
-      void run();
+      runCurrent();
     });
     box.appendChild(b);
   }
@@ -371,12 +458,11 @@ function readCompareInputs() {
 function updateRunLabel() {
   $('trend-run').textContent = compare.view === 'compare'
     ? `Compare ${compare.count} place${compare.count === 1 ? '' : 's'}`
-    : 'Run the NASA numbers';
-}
-
-/** The result card is a bottom sheet on narrow screens: the panel has to make room. */
-function setResultOpen(on: boolean) {
-  document.body.classList.toggle('result-open', on);
+    : compare.view === 'map'
+      ? 'Map the change'
+      : compare.view === 'sweep'
+        ? 'Scan every NASA variable'
+        : 'Run the NASA numbers';
 }
 
 function buildCompareRows() {
@@ -418,19 +504,23 @@ function setView(view: TrendView) {
   $('trend-locate').hidden = view === 'compare';
   $('trend-presets').hidden = view === 'compare';
   $('compare-setup').hidden = view !== 'compare';
-  document.querySelectorAll<HTMLElement>('.trend-imagery-field').forEach((el) => { el.hidden = view === 'compare'; });
+  $('map-setup').hidden = view !== 'map';
+  $('sweep-setup').hidden = view !== 'sweep';
+  $('trend-var-field').hidden = view === 'sweep';
+  document.querySelectorAll<HTMLElement>('.trend-imagery-field').forEach((el) => { el.hidden = view !== 'single'; });
   updateRunLabel();
+  $('trend-status').classList.remove('bad');
+  $('trend-result').hidden = true;
+  $('compare-result').hidden = true;
+  hideExplore();
   if (view === 'single') {
-    $('compare-result').hidden = true;
-  setResultOpen(false);
     if (state.result) $('trend-result').hidden = false;
-    setResultOpen(!$('trend-result').hidden);
-  } else {
-    $('trend-result').hidden = true;
+  } else if (view === 'compare') {
     if (compare.entries.length) $('compare-result').hidden = false;
-    setResultOpen(!$('compare-result').hidden);
     buildCompareRows();
     drawCompareChart();
+  } else {
+    showExplore(view);
   }
 }
 
@@ -480,15 +570,20 @@ function bindEvents() {
   });
   $('trend-run').addEventListener('click', () => {
     if (compare.view === 'compare') void runCompare();
+    else if (compare.view === 'map') runMapView();
+    else if (compare.view === 'sweep') runSweepView();
     else void run();
   });
   document.querySelectorAll<HTMLElement>('#trend-view button').forEach((b) => {
-    b.addEventListener('click', () => setView(b.dataset.view === 'compare' ? 'compare' : 'single'));
+    b.addEventListener('click', () => {
+      const v = b.dataset.view;
+      setView(v === 'compare' || v === 'map' || v === 'sweep' ? v : 'single');
+    });
   });
   $('compare-count').addEventListener('change', buildCompareRows);
-  $('compare-close').addEventListener('click', () => { $('compare-result').hidden = true; setResultOpen(false); });
+  $('compare-close').addEventListener('click', () => { $('compare-result').hidden = true; });
   $('compare-csv').addEventListener('click', downloadCompareCsv);
-  $('trend-close').addEventListener('click', () => { $('trend-result').hidden = true; setResultOpen(false); });
+  $('trend-close').addEventListener('click', () => { $('trend-result').hidden = true; });
   $('trend-explain').addEventListener('click', () => {
     const el = $('trend-explain-text');
     el.hidden = !el.hidden;
@@ -620,7 +715,7 @@ async function probeAi() {
 }
 
 async function locate(q: string) {
-  setView('single');
+  if (compare.view === 'compare') setView('single');
   const status = $('trend-status');
   status.classList.remove('bad');
   status.textContent = `Finding ${q}…`;
@@ -632,7 +727,7 @@ async function locate(q: string) {
     if (!res.ok || j.error || !Number.isFinite(j.lat) || !Number.isFinite(j.lon)) throw new Error(j.error || 'That place was not found');
     setPlace({ name: j.name || q, lat: j.lat!, lon: j.lon!, mode: 'point' });
     status.textContent = '';
-    await run();
+    runCurrent();
   } catch (err) {
     status.classList.add('bad');
     status.textContent = err instanceof Error ? err.message : String(err);
@@ -816,7 +911,7 @@ async function run() {
 function render(r: TrendResult) {
   $('trend-result').hidden = false;
   $('compare-result').hidden = true;
-  setResultOpen(true);
+  hideExplore();
   $('trend-result-place').textContent = r.place.name;
   const g = r.place.gauge;
   const mode = g
@@ -849,11 +944,15 @@ function render(r: TrendResult) {
   const stats = $('trend-stats');
   stats.replaceChildren();
   if (s) {
-    const ci: [number, number] = [s.olsCi95[0] * 10, s.olsCi95[1] * 10];
+    const ci: [number, number] = s.senCi95 ? [s.senCi95[0] * 10, s.senCi95[1] * 10] : [s.olsCi95[0] * 10, s.olsCi95[1] * 10];
+    const pText = (p: number) => (p < 0.001 ? '< 0.001' : fmt(p, 3));
+    const cp = s.changePoint;
     const rows: [string, string][] = [
       ['Sen slope', `${s.senPerDecade > 0 ? '+' : ''}${fmt(s.senPerDecade, d)} ${r.variable.annualUnit}/decade`],
-      ['95% interval (OLS)', `${fmt(ci[0], d)} to ${fmt(ci[1], d)} ${r.variable.annualUnit}/decade`],
-      ['Mann–Kendall p', s.mk.p < 0.001 ? '< 0.001' : fmt(s.mk.p, 3)],
+      [s.senCi95 ? '95% interval (Sen)' : '95% interval (OLS)', `${fmt(ci[0], d)} to ${fmt(ci[1], d)} ${r.variable.annualUnit}/decade`],
+      ['Mann–Kendall p', pText(s.mk.p)],
+      ...(s.mkModified ? [['p, autocorrelation-corrected', `${pText(s.mkModified.p)}${s.robust ? ' · robust' : ''}`] as [string, string]] : []),
+      ...(cp ? [['Change point (Pettitt)', cp.significant ? `${cp.year} · p ${pText(cp.p)}` : `none (p ${pText(cp.p)})`] as [string, string]] : []),
       ['Kendall τ', fmt(s.mk.tau, 2)],
       ['Change over period', `${s.changeAbs > 0 ? '+' : ''}${fmt(s.changeAbs, d)} ${r.variable.annualUnit}`],
       ['Period mean', `${fmt(s.mean, d)} ${r.variable.annualUnit}`],
@@ -913,7 +1012,7 @@ function renderCompare(entries: CompareEntry[], start: number, end: number) {
   const ok = entries.filter((e) => e.result);
   $('compare-result').hidden = false;
   $('trend-result').hidden = true;
-  setResultOpen(true);
+  hideExplore();
   $('compare-kicker').textContent = 'NASA POWER / MERRA-2 · comparison';
   $('compare-title').textContent = ok.length === entries.length
     ? `${entries.length} places compared`
