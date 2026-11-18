@@ -1,0 +1,358 @@
+/* ATLAS v2 · style study. Each look is a full skin over the same app, chosen with ?look=.
+   field = the v2 default (src/v2.css). The rest live here, scoped to html[data-look]. */
+@import '@fontsource-variable/inter-tight';
+@import '@fontsource-variable/newsreader';
+@import '@fontsource-variable/newsreader/opsz-italic.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/vt323';
+@import '@fontsource-variable/archivo/wdth.css';
+
+/* Shared: every look gets clean focus rings and readable controls. */
+html[data-look] body :is(button, input):focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+/* =====================================================================
+   1. MODERN · NASA '75 modernism. White paper, black type, one red.
+   ===================================================================== */
+html[data-look="modern"] {
+  --ground: #F5F4F0 !important; --ground-2: #ECEAE4 !important; --bone: #111 !important; --bone-2: #333 !important;
+  --muted: #6B6B6B !important; --line: #D8D6D0 !important; --signal: #E0301E !important; --panel: #FFFFFF !important; --panel-text: #111 !important;
+  --card-ink: #fff !important;
+  --display: 'Inter Tight Variable', 'Helvetica Neue', Arial, sans-serif !important;
+  --ui: 'Inter Tight Variable', 'Helvetica Neue', Arial, sans-serif !important;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace !important;
+  color-scheme: light;
+}
+html[data-look="modern"] #globe { background: #ECEAE4; }
+html[data-look="modern"] .mark .word { font-weight: 800; font-stretch: 100%; letter-spacing: -.04em; font-size: 26px; }
+html[data-look="modern"] .mark .sub { color: var(--signal); font-weight: 600; }
+html[data-look="modern"] .modes { background: #F5F4F0; border: 0; border-bottom: 1px solid #111; gap: 0; }
+html[data-look="modern"] .mode { background: transparent; border: 0; border-top: 3px solid transparent; color: #111; border-radius: 0; }
+html[data-look="modern"] .mode.is-on { border-top-color: var(--signal); background: transparent; color: #111; }
+html[data-look="modern"] .mode small { color: #888; }
+html[data-look="modern"] .trend-panel { background: #FFFFFF; border-right: 1px solid #111; }
+html[data-look="modern"] .trend-head { background: #FFFFFF; border-bottom: 1px solid #111; }
+html[data-look="modern"] .trend-panel h1 { font-weight: 800; text-transform: none; font-stretch: 100%; letter-spacing: -.035em; font-size: clamp(36px, 3.2vw, 48px); line-height: .95; }
+html[data-look="modern"] .trend-panel h1::before { content: ""; display: block; width: 28px; height: 28px; background: var(--signal); margin-bottom: 16px; }
+html[data-look="modern"] .eyebrow { color: #111; font-weight: 600; }
+html[data-look="modern"] .trend-field-label { color: #111; font-weight: 600; border-top: 1px solid #111; padding-top: 6px; }
+html[data-look="modern"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button, .trend-cases button) {
+  background: #fff; color: #111; border: 1px solid #111; border-radius: 0; box-shadow: none;
+}
+html[data-look="modern"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button).is-on { background: #111; color: #fff; }
+html[data-look="modern"] .trend-cases button small { color: var(--signal); }
+html[data-look="modern"] .trend-cases button:hover { background: #F2F1EC; }
+html[data-look="modern"] .trend-run { background: var(--signal); color: #fff; border-radius: 0; border: 0; font-weight: 700; letter-spacing: .02em; }
+html[data-look="modern"] .trend-ask input { background: #fff; color: #111; border: 1px solid #111; border-radius: 0; }
+html[data-look="modern"] .trend-result { background: #fff; color: #111; border: 0; border-top: 8px solid var(--signal); border-radius: 0; box-shadow: 0 1px 0 #111, 0 24px 60px rgba(0,0,0,.12); }
+html[data-look="modern"] .trend-result h2 { font-weight: 800; text-transform: none; letter-spacing: -.03em; font-size: 34px; font-stretch: 100%; }
+html[data-look="modern"] .trend-headline b { font-family: var(--display); font-weight: 800; letter-spacing: -.05em; font-size: 72px; color: #111; }
+html[data-look="modern"] .trend-badge { background: transparent; color: var(--signal); border: 0; padding: 0; font-weight: 600; }
+html[data-look="modern"] .trend-badge::before { content: "■ "; }
+html[data-look="modern"] .trend-chart-wrap { background: #fff; border-top: 1px solid #111; border-bottom: 1px solid #111; }
+html[data-look="modern"] .deep-read { border: 0; border-top: 1px solid #111; background: #fff; padding: 10px 0 0; }
+html[data-look="modern"] .deep-tabs { background: transparent; box-shadow: none; padding: 0; gap: 14px; }
+html[data-look="modern"] .deep-tabs button { color: #888; padding: 4px 0; border-bottom: 2px solid transparent; border-radius: 0; }
+html[data-look="modern"] .deep-tabs button[aria-selected="true"] { color: #111; background: none; box-shadow: none; border-bottom-color: var(--signal); }
+html[data-look="modern"] .trend-actions .iso-btn { border: 1px solid #111; border-radius: 0; color: #111; background: #fff; }
+
+/* =====================================================================
+   2. SURVEY · cartographic atlas. Map paper, contour lines, legend boxes.
+   ===================================================================== */
+html[data-look="survey"] {
+  --ground: #EFE7D4 !important; --ground-2: #E6DCC4 !important; --bone: #2C2619 !important; --bone-2: #4A4130 !important;
+  --muted: #7C6E52 !important; --line: #BFAF8C !important; --signal: #C2462C !important; --panel: #F7F1E3 !important; --panel-text: #2C2619 !important;
+  --card-ink: #F7F1E3 !important;
+  --display: 'Archivo Variable', 'Arial Narrow', sans-serif !important;
+  --ui: 'Archivo Variable', Arial, sans-serif !important;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace !important;
+  --topo:
+    repeating-radial-gradient(ellipse 120% 90% at 18% 30%, transparent 0 22px, rgba(140, 104, 58, .22) 22px 23px),
+    repeating-radial-gradient(ellipse 90% 120% at 82% 78%, transparent 0 26px, rgba(140, 104, 58, .18) 26px 27px);
+  color-scheme: light;
+}
+html[data-look="survey"] #globe { background: var(--topo), radial-gradient(circle at 60% 45%, #F3ECDB, #E2D6BA); }
+html[data-look="survey"] .mark .word { font-stretch: 125%; font-weight: 800; letter-spacing: .28em; font-size: 20px; }
+html[data-look="survey"] .mark .sub { color: #3E6E8E; }
+html[data-look="survey"] .modes { background: var(--panel); border: 3px double var(--bone); }
+html[data-look="survey"] .mode { color: var(--bone); background: transparent; border-radius: 0; }
+html[data-look="survey"] .mode.is-on { background: var(--bone); color: var(--panel); }
+html[data-look="survey"] .trend-panel { background: var(--topo), var(--ground); border-right: 3px double var(--bone); }
+html[data-look="survey"] .trend-head { background: var(--ground); border-bottom: 3px double var(--bone); }
+html[data-look="survey"] .trend-panel h1 { font-stretch: 125%; font-weight: 800; letter-spacing: .06em; font-size: clamp(26px, 2.3vw, 34px); }
+html[data-look="survey"] .eyebrow { color: #3E6E8E; letter-spacing: .3em; }
+html[data-look="survey"] .trend-field-label { color: var(--bone); font-stretch: 125%; font-weight: 700; letter-spacing: .22em; }
+html[data-look="survey"] .trend-field-label::before { content: "◇ "; color: var(--signal); }
+html[data-look="survey"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button) {
+  background: var(--panel); color: var(--bone); border: 1px solid var(--bone); border-radius: 0; box-shadow: none; font-family: var(--mono);
+}
+html[data-look="survey"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button).is-on { background: var(--bone); color: var(--panel); }
+html[data-look="survey"] .trend-cases button { background: var(--panel); color: var(--bone); border: 3px double var(--bone); border-radius: 0; }
+html[data-look="survey"] .trend-cases button small { color: var(--signal); }
+html[data-look="survey"] .trend-run { background: var(--signal); color: #FFF7E8; border: 3px double #FFF7E8; outline: 1px solid var(--signal); border-radius: 0; font-stretch: 125%; letter-spacing: .2em; }
+html[data-look="survey"] .trend-ask input { background: var(--panel); color: var(--bone); border: 1px solid var(--bone); border-radius: 0; }
+html[data-look="survey"] .trend-result {
+  background: var(--panel); color: var(--bone); border: 4px double var(--bone); border-radius: 0;
+  box-shadow: 0 0 0 6px var(--panel), 0 0 0 7px var(--bone), 0 18px 40px rgba(60, 40, 10, .25);
+}
+html[data-look="survey"] .trend-result-top { border-bottom: 1px solid var(--bone); }
+html[data-look="survey"] .trend-result h2 { font-stretch: 125%; letter-spacing: .08em; }
+html[data-look="survey"] .trend-headline b { font-family: var(--mono); font-weight: 600; font-size: 56px; color: var(--signal); }
+html[data-look="survey"] .trend-badge { border: 1.5px solid currentColor; border-radius: 50%; padding: 8px 14px; background: transparent; font-family: var(--mono); letter-spacing: .14em; transform: rotate(-3deg); }
+html[data-look="survey"] .trend-chart-wrap { background: #FBF7EC; border: 1px solid var(--bone); background-image: linear-gradient(rgba(62,110,142,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(62,110,142,.08) 1px, transparent 1px); background-size: 20px 20px; }
+html[data-look="survey"] .deep-read { border: 1px solid var(--bone); background: #FBF7EC; }
+html[data-look="survey"] .deep-tabs { background: transparent; box-shadow: none; border: 1px solid var(--bone); border-radius: 0; padding: 0; gap: 0; }
+html[data-look="survey"] .deep-tabs button { color: var(--bone); border-radius: 0; }
+html[data-look="survey"] .deep-tabs button[aria-selected="true"] { background: var(--bone); color: var(--panel); box-shadow: none; }
+html[data-look="survey"] .trend-actions .iso-btn { border: 1px solid var(--bone); color: var(--bone); background: var(--panel); border-radius: 0; }
+
+/* =====================================================================
+   3. SKEUO · a precision lab instrument. Warm plastic, convex keys,
+      an LCD readout, a phosphor scope for the chart, screws and LEDs.
+   ===================================================================== */
+html[data-look="skeuo"] {
+  --ground: #DCD8CF !important; --ground-2: #CFCAC0 !important; --bone: #2A2926 !important; --bone-2: #44423D !important;
+  --muted: #77736A !important; --line: #B8B3A8 !important; --signal: #F0661E !important; --panel: #E9E6DF !important; --panel-text: #26251F !important;
+  --card-ink: #fff !important;
+  --display: 'Inter Tight Variable', 'Helvetica Neue', Arial, sans-serif !important;
+  --ui: 'Inter Tight Variable', 'Helvetica Neue', Arial, sans-serif !important;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace !important;
+  --plastic: linear-gradient(180deg, #EFECE6 0%, #E2DED6 100%);
+  --key: linear-gradient(180deg, #FBFAF7 0%, #E7E3DB 55%, #D9D4CA 100%);
+  --key-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 -2px 0 rgba(0,0,0,.08) inset, 0 2px 0 #B5AFA3, 0 4px 8px rgba(0,0,0,.18);
+  --key-pressed: 0 2px 5px rgba(0,0,0,.25) inset, 0 1px 0 rgba(255,255,255,.8);
+  color-scheme: light;
+}
+html[data-look="skeuo"] #globe {
+  background: radial-gradient(circle at 50% 42%, #2B2D30 0%, #17181A 55%, #0B0B0C 100%);
+}
+html[data-look="skeuo"] #globe::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 40% at 38% 18%, rgba(255,255,255,.08), transparent 60%);
+}
+html[data-look="skeuo"] .mark .word { font-weight: 700; letter-spacing: .32em; font-stretch: 100%; font-size: 18px; color: #2A2926; }
+html[data-look="skeuo"] .mark .sub { color: var(--signal); font-weight: 600; }
+html[data-look="skeuo"] .bar .mark { background: var(--plastic); padding: 8px 14px; border-radius: 10px; box-shadow: var(--key-shadow); }
+html[data-look="skeuo"] .modes { background: #2A2926; padding: 5px; gap: 5px; border-radius: 12px; box-shadow: inset 0 2px 6px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.5); border: 0; }
+html[data-look="skeuo"] .mode { background: linear-gradient(#3A3935, #2E2D29); color: #BDB8AC; border-radius: 7px; border: 0; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 2px 3px rgba(0,0,0,.5); }
+html[data-look="skeuo"] .mode.is-on { background: linear-gradient(#26251F, #302F2A); color: #FFB066; box-shadow: inset 0 2px 5px rgba(0,0,0,.7); text-shadow: 0 0 8px rgba(255,140,40,.7); }
+html[data-look="skeuo"] .mode small { color: #7D786D; }
+html[data-look="skeuo"] .trend-panel {
+  background:
+    radial-gradient(circle at 18px 18px, #9E998E 0 3px, #7C776C 3px 4px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 18px) 18px, #9E998E 0 3px, #7C776C 3px 4px, transparent 4.5px),
+    var(--plastic);
+  border-right: 0; box-shadow: inset -1px 0 0 rgba(255,255,255,.6), 6px 0 24px rgba(0,0,0,.35);
+}
+html[data-look="skeuo"] .trend-head { background: transparent; border-bottom: 1px solid #C5C0B5; box-shadow: 0 1px 0 rgba(255,255,255,.7); }
+html[data-look="skeuo"] .trend-panel h1 { font-weight: 700; text-transform: none; font-stretch: 100%; letter-spacing: -.02em; font-size: clamp(30px, 2.6vw, 40px); color: #2A2926; text-shadow: 0 1px 0 rgba(255,255,255,.8); }
+html[data-look="skeuo"] .eyebrow { color: var(--signal); font-weight: 600; }
+html[data-look="skeuo"] .trend-lede { color: #4A4740; }
+html[data-look="skeuo"] .trend-field-label { color: #6A665D; font-weight: 600; text-shadow: 0 1px 0 rgba(255,255,255,.8); }
+html[data-look="skeuo"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button) {
+  position: relative; background: var(--key); color: #2A2926; border: 1px solid #B9B3A7; border-radius: 9px; box-shadow: var(--key-shadow);
+  transition: box-shadow .12s, transform .12s, background .12s;
+}
+html[data-look="skeuo"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button):active { transform: translateY(2px); box-shadow: var(--key-pressed); }
+html[data-look="skeuo"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button).is-on {
+  background: linear-gradient(180deg, #DAD5CB, #E6E2DA); transform: translateY(2px); box-shadow: var(--key-pressed); color: #1E1D19;
+}
+html[data-look="skeuo"] :is(.trend-presets button, .trend-view button, .trend-basemap button, .trend-groups button).is-on::after {
+  content: ""; position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%;
+  background: #FF8A3D; box-shadow: 0 0 6px #FF8A3D, 0 0 2px #fff inset;
+}
+html[data-look="skeuo"] .trend-cases button {
+  background: var(--key); color: #2A2926; border: 1px solid #B9B3A7; border-radius: 12px; box-shadow: var(--key-shadow);
+}
+html[data-look="skeuo"] .trend-cases button small { color: var(--signal); }
+html[data-look="skeuo"] .trend-cases button.is-on { box-shadow: var(--key-pressed); transform: translateY(2px); }
+html[data-look="skeuo"] .trend-run {
+  background: radial-gradient(circle at 50% 30%, #FF9A55, #F0661E 55%, #C94C10); color: #fff; border: 1px solid #A8410E; border-radius: 12px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 3px 0 #9A3B0C, 0 6px 14px rgba(200,80,20,.4); text-shadow: 0 -1px 0 rgba(0,0,0,.25); font-weight: 700;
+}
+html[data-look="skeuo"] .trend-run:active { transform: translateY(3px); box-shadow: 0 2px 6px rgba(0,0,0,.35) inset; }
+html[data-look="skeuo"] .trend-ask input { background: #F7F5F0; color: #2A2926; border: 1px solid #ADA79A; border-radius: 9px; box-shadow: inset 0 2px 4px rgba(0,0,0,.15); }
+html[data-look="skeuo"] .trend-result {
+  background:
+    radial-gradient(circle at 14px 14px, #A39E93 0 3px, #7C776C 3px 4px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 14px) 14px, #A39E93 0 3px, #7C776C 3px 4px, transparent 4.5px),
+    radial-gradient(circle at 14px calc(100% - 14px), #A39E93 0 3px, #7C776C 3px 4px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 14px) calc(100% - 14px), #A39E93 0 3px, #7C776C 3px 4px, transparent 4.5px),
+    var(--plastic);
+  color: #2A2926; border: 1px solid #A9A397; border-radius: 18px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 -3px 0 rgba(0,0,0,.08) inset, 0 4px 0 #A49E92, 0 22px 50px rgba(0,0,0,.5);
+}
+html[data-look="skeuo"] .trend-result-top { color: #6A665D; padding: 0 12px; }
+html[data-look="skeuo"] #trend-kicker::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #3DDC84; box-shadow: 0 0 8px #3DDC84, 0 0 2px #fff inset; vertical-align: 0; }
+html[data-look="skeuo"] .trend-result .x { background: var(--key); border-radius: 50%; box-shadow: var(--key-shadow); border: 1px solid #B9B3A7; color: #2A2926; }
+html[data-look="skeuo"] .trend-result h2 { font-weight: 700; text-transform: none; letter-spacing: -.02em; font-stretch: 100%; }
+/* LCD readout for the headline number */
+html[data-look="skeuo"] .trend-headline { background: linear-gradient(180deg, #1C2318, #11160E); border-radius: 10px; padding: 12px 16px; border: 1px solid #0A0D08;
+  box-shadow: inset 0 3px 10px rgba(0,0,0,.8), 0 1px 0 rgba(255,255,255,.8); position: relative; overflow: hidden; flex: none; align-items: center; }
+html[data-look="skeuo"] .trend-headline::after { content: ""; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(255,255,255,.10), transparent 40%); pointer-events: none; }
+html[data-look="skeuo"] .trend-headline b { font-family: 'VT323', monospace; font-weight: 400; font-size: 78px; letter-spacing: .02em; color: #B6FF7A; text-shadow: 0 0 12px rgba(150,255,90,.55); line-height: .9; }
+html[data-look="skeuo"] .trend-headline :is(span, small, #trend-rate-label) { color: #7FAF5A; }
+html[data-look="skeuo"] .trend-badge { background: linear-gradient(#2A2E25, #1D2019); color: #B6FF7A; border: 1px solid #000; border-radius: 6px; padding: 6px 10px; font-family: var(--mono); text-shadow: 0 0 6px rgba(150,255,90,.6); }
+html[data-look="skeuo"] .trend-badge.weak { color: #FFC24A; text-shadow: 0 0 6px rgba(255,190,60,.6); }
+html[data-look="skeuo"] .trend-badge.none { color: #FF7B5E; text-shadow: 0 0 6px rgba(255,110,80,.6); }
+/* Scope screen for the chart */
+html[data-look="skeuo"] .trend-chart-wrap { background: radial-gradient(ellipse at 50% 40%, #F4F7EC, #DCE3D0); border-radius: 12px; border: 1px solid #8F8A7F; box-shadow: inset 0 3px 8px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.8); padding: 6px; }
+html[data-look="skeuo"] .trend-chart-legend button { background: var(--key); border-radius: 7px; border: 1px solid #B9B3A7; box-shadow: var(--key-shadow); color: #2A2926; }
+html[data-look="skeuo"] .trend-chart-legend button.is-on { box-shadow: var(--key-pressed); transform: translateY(1px); }
+html[data-look="skeuo"] .deep-read { background: #E1DDD4; border: 1px solid #B3AEA2; border-radius: 12px; box-shadow: inset 0 2px 5px rgba(0,0,0,.12); }
+html[data-look="skeuo"] .deep-tabs { background: #2A2926; border-radius: 9px; }
+html[data-look="skeuo"] .deep-tabs button { color: #A9A496; }
+html[data-look="skeuo"] .deep-tabs button[aria-selected="true"] { background: var(--key); color: #2A2926; box-shadow: 0 1px 0 #fff inset, 0 2px 3px rgba(0,0,0,.5); }
+html[data-look="skeuo"] .trend-actions .iso-btn { background: var(--key); color: #2A2926; border: 1px solid #B9B3A7; border-radius: 9px; box-shadow: var(--key-shadow); }
+html[data-look="skeuo"] .trend-actions .iso-btn:active { box-shadow: var(--key-pressed); transform: translateY(2px); }
+html[data-look="skeuo"] .trend-stats { font-family: var(--mono); }
+
+/* =====================================================================
+   4. EDITORIAL · data journalism. Newsprint, serif headlines, annotation.
+   ===================================================================== */
+html[data-look="editorial"] {
+  --ground: #FAF8F3 !important; --ground-2: #F1EEE6 !important; --bone: #121212 !important; --bone-2: #333 !important;
+  --muted: #6E6A61 !important; --line: #D9D4C7 !important; --signal: #B3261E !important; --panel: #FFFFFF !important; --panel-text: #121212 !important;
+  --card-ink: #fff !important;
+  --display: 'Newsreader Variable', Georgia, serif !important;
+  --ui: 'Inter Tight Variable', 'Helvetica Neue', Arial, sans-serif !important;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace !important;
+  color-scheme: light;
+}
+html[data-look="editorial"] #globe { background: #F1EEE6; }
+html[data-look="editorial"] .mark .word { font-family: 'Newsreader Variable', serif; font-weight: 700; font-style: italic; letter-spacing: -.01em; font-stretch: 100%; font-size: 28px; }
+html[data-look="editorial"] .mark .sub { color: var(--muted); }
+html[data-look="editorial"] .modes { background: #FAF8F3; border: 0; border-top: 3px solid #121212; border-bottom: 1px solid #121212; border-radius: 0; }
+html[data-look="editorial"] .mode { background: transparent; color: #121212; border-radius: 0; font-family: var(--ui); }
+html[data-look="editorial"] .mode.is-on { color: var(--signal); background: transparent; }
+html[data-look="editorial"] .trend-panel { background: #FAF8F3; border-right: 1px solid #121212; }
+html[data-look="editorial"] .trend-head { background: #FAF8F3; border-top: 4px double #121212; border-bottom: 1px solid #121212; }
+html[data-look="editorial"] .trend-panel h1 { font-family: var(--display); font-weight: 600; text-transform: none; font-stretch: 100%; letter-spacing: -.015em; font-size: clamp(34px, 3vw, 46px); line-height: 1.02; }
+html[data-look="editorial"] .trend-lede { font-family: var(--display); font-size: 17px; line-height: 1.45; color: #333; }
+html[data-look="editorial"] .trend-lede::first-letter { font-size: 3.1em; float: left; line-height: .8; margin: 4px 6px 0 0; font-weight: 700; color: var(--signal); }
+html[data-look="editorial"] .eyebrow { color: var(--signal); font-family: var(--ui); font-weight: 700; letter-spacing: .08em; }
+html[data-look="editorial"] .trend-field-label { color: #121212; font-family: var(--ui); font-weight: 700; letter-spacing: .06em; border-top: 1px solid #121212; padding-top: 6px; }
+html[data-look="editorial"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button) {
+  background: transparent; color: #121212; border: 1px solid #CFC9BB; border-radius: 999px; box-shadow: none; font-family: var(--ui);
+}
+html[data-look="editorial"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button).is-on { background: #121212; color: #FAF8F3; border-color: #121212; }
+html[data-look="editorial"] .trend-cases button { background: #fff; color: #121212; border: 0; border-top: 3px solid #121212; border-radius: 0; box-shadow: none; text-align: left; }
+html[data-look="editorial"] .trend-cases button span { font-family: var(--display); font-size: 16px; font-weight: 600; }
+html[data-look="editorial"] .trend-cases button small { color: var(--signal); font-family: var(--ui); }
+html[data-look="editorial"] .trend-run { background: #121212; color: #fff; border: 0; border-radius: 0; font-family: var(--ui); font-weight: 600; }
+html[data-look="editorial"] .trend-ask input { background: #fff; color: #121212; border: 0; border-bottom: 2px solid #121212; border-radius: 0; font-family: var(--display); font-size: 18px; }
+html[data-look="editorial"] .trend-result { background: #fff; color: #121212; border: 0; border-top: 4px double #121212; border-radius: 0; box-shadow: 0 18px 50px rgba(0,0,0,.12); }
+html[data-look="editorial"] .trend-result-top { font-family: var(--ui); color: var(--signal); font-weight: 700; }
+html[data-look="editorial"] .trend-result h2 { font-family: var(--display); font-weight: 600; text-transform: none; letter-spacing: -.01em; font-stretch: 100%; font-size: 36px; }
+html[data-look="editorial"] .trend-result-coords { font-family: var(--display); font-style: italic; color: #6E6A61; letter-spacing: 0; text-transform: none; }
+html[data-look="editorial"] .trend-headline b { font-family: var(--display); font-weight: 500; font-size: 70px; letter-spacing: -.02em; color: var(--signal); }
+html[data-look="editorial"] .trend-badge { background: #FFF1D6; color: #121212; border: 0; border-radius: 0; font-family: var(--ui); font-weight: 600; padding: 3px 6px; }
+html[data-look="editorial"] .trend-summary { font-family: var(--display); font-size: 16.5px; line-height: 1.5; }
+html[data-look="editorial"] .trend-chart-wrap { background: #fff; border-top: 1px solid #121212; border-bottom: 1px solid #121212; }
+html[data-look="editorial"] .deep-read { background: #fff; border: 0; border-top: 1px solid #121212; padding: 10px 0 0; }
+html[data-look="editorial"] .deep-kicker { font-family: var(--display); font-style: italic; text-transform: none; font-size: 15px; letter-spacing: 0; }
+html[data-look="editorial"] .deep-tabs { background: transparent; box-shadow: none; padding: 0; gap: 12px; }
+html[data-look="editorial"] .deep-tabs button { color: #6E6A61; font-family: var(--ui); border-radius: 0; padding: 4px 0; }
+html[data-look="editorial"] .deep-tabs button[aria-selected="true"] { background: none; box-shadow: none; color: #121212; border-bottom: 2px solid #121212; }
+html[data-look="editorial"] .deep-caption { font-family: var(--display); font-size: 14px; font-style: italic; }
+html[data-look="editorial"] .trend-actions .iso-btn { border: 1px solid #121212; border-radius: 999px; color: #121212; background: #fff; font-family: var(--ui); }
+
+/* =====================================================================
+   5. MISSION · Apollo console. Painted panel, CRT screens, annunciator keys.
+   ===================================================================== */
+html[data-look="mission"] {
+  --ground: #3B4744 !important; --ground-2: #333E3B !important; --bone: #E9EDE6 !important; --bone-2: #C9D0C6 !important;
+  --muted: #9AA59E !important; --line: #56625E !important; --signal: #FFB000 !important; --panel: #0A120E !important; --panel-text: #8CFFA8 !important;
+  --card-ink: #111 !important;
+  --display: 'Archivo Variable', Arial, sans-serif !important;
+  --ui: 'Archivo Variable', Arial, sans-serif !important;
+  --mono: 'VT323', 'IBM Plex Mono', monospace !important;
+  color-scheme: dark;
+}
+html[data-look="mission"] #globe { background: radial-gradient(circle at 50% 45%, #0E1A26 0%, #070C12 70%); }
+html[data-look="mission"] .mark .word { font-stretch: 125%; font-weight: 800; letter-spacing: .3em; font-size: 18px; color: #E9EDE6; }
+html[data-look="mission"] .mark .sub { color: var(--signal); font-family: var(--mono); font-size: 16px; }
+html[data-look="mission"] .modes { background: #2B3532; border: 2px solid #1C2422; border-radius: 4px; padding: 4px; gap: 4px; box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+html[data-look="mission"] .mode { background: #151B19; color: #6E7A74; border: 1px solid #000; border-radius: 2px; font-family: var(--ui); font-stretch: 125%; }
+html[data-look="mission"] .mode.is-on { background: #3A2A00; color: #FFD25A; text-shadow: 0 0 8px rgba(255,190,40,.8); box-shadow: inset 0 0 12px rgba(255,176,0,.35); }
+html[data-look="mission"] .mode small { font-family: var(--mono); font-size: 13px; }
+html[data-look="mission"] .trend-panel { background: linear-gradient(90deg, rgba(0,0,0,.12) 1px, transparent 1px) 0 0 / 100% 100%, #3B4744; border-right: 6px solid #2A3330; box-shadow: inset -1px 0 0 rgba(255,255,255,.08); }
+html[data-look="mission"] .trend-head { background: #3B4744; border-bottom: 2px solid #2A3330; }
+html[data-look="mission"] .trend-panel h1 { font-stretch: 125%; font-weight: 800; letter-spacing: .08em; font-size: clamp(24px, 2.2vw, 32px); }
+html[data-look="mission"] .trend-lede { color: #C9D0C6; }
+html[data-look="mission"] .eyebrow { color: var(--signal); font-family: var(--mono); font-size: 16px; letter-spacing: .1em; }
+html[data-look="mission"] .trend-field-label { color: #E9EDE6; font-family: var(--ui); font-stretch: 125%; font-weight: 700; letter-spacing: .2em; background: #2A3330; padding: 3px 6px; display: inline-block; }
+html[data-look="mission"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button) {
+  background: #151B19; color: #8E9A93; border: 1px solid #000; border-radius: 2px; box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 2px 0 #1A201E; font-family: var(--mono); font-size: 15px;
+}
+html[data-look="mission"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button).is-on {
+  background: #102A18; color: #8CFFA8; text-shadow: 0 0 8px rgba(120,255,150,.8); box-shadow: inset 0 0 14px rgba(120,255,150,.25);
+}
+html[data-look="mission"] .trend-cases button { background: #EDE7C9; color: #1A1A1A; border: 1px solid #000; border-radius: 2px; box-shadow: 0 2px 0 #000; font-family: var(--ui); }
+html[data-look="mission"] .trend-cases button small { color: #B3261E; font-family: var(--mono); font-size: 14px; }
+html[data-look="mission"] .trend-run { background: repeating-linear-gradient(-45deg, #FFB000 0 12px, #1A1A1A 12px 24px); color: #fff; border: 2px solid #000; border-radius: 2px; font-family: var(--ui); font-stretch: 125%; font-weight: 800; letter-spacing: .2em; text-shadow: 0 0 4px #000, 0 0 2px #000; }
+html[data-look="mission"] .trend-ask input { background: #0A120E; color: #8CFFA8; border: 1px solid #000; border-radius: 2px; font-family: var(--mono); font-size: 20px; box-shadow: inset 0 0 12px rgba(0,0,0,.8); }
+html[data-look="mission"] .trend-result {
+  background: #0A120E; color: #8CFFA8; border: 14px solid #2A3330; border-radius: 22px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,.9), inset 0 0 0 2px #000, 0 0 0 2px #1C2422, 0 20px 50px rgba(0,0,0,.6);
+  font-family: var(--mono); text-shadow: 0 0 6px rgba(120,255,150,.45);
+}
+html[data-look="mission"] .trend-result::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1; border-radius: 8px;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px); }
+html[data-look="mission"] .trend-result :is(h2, .trend-summary, .trend-stats, .trend-source, .trend-var-note) { color: #8CFFA8; font-family: var(--mono); }
+html[data-look="mission"] .trend-result h2 { font-size: 40px; text-transform: uppercase; letter-spacing: .06em; font-weight: 400; font-stretch: 100%; }
+html[data-look="mission"] .trend-summary { font-size: 19px; line-height: 1.25; }
+html[data-look="mission"] .trend-headline b { font-family: var(--mono); font-weight: 400; font-size: 88px; color: #FFD25A; text-shadow: 0 0 14px rgba(255,190,40,.7); }
+html[data-look="mission"] .trend-badge { background: #3A0E0A; color: #FF6B4F; border: 1px solid #FF6B4F; border-radius: 2px; font-family: var(--mono); font-size: 16px; text-shadow: 0 0 8px rgba(255,100,70,.8); }
+html[data-look="mission"] .trend-badge:is(.strong, .sig) { background: #0D2A14; color: #8CFFA8; border-color: #8CFFA8; text-shadow: 0 0 8px rgba(120,255,150,.8); }
+html[data-look="mission"] .trend-chart-wrap { background: #06100A; border: 1px solid #1C3A24; box-shadow: inset 0 0 20px rgba(0,0,0,.8); }
+html[data-look="mission"] .deep-read { background: #06100A; border: 1px solid #1C3A24; }
+html[data-look="mission"] .deep-kicker { color: #FFD25A; font-family: var(--mono); font-size: 15px; }
+html[data-look="mission"] .deep-tabs { background: #000; }
+html[data-look="mission"] .deep-tabs button { color: #4F7A5A; font-family: var(--mono); font-size: 14px; }
+html[data-look="mission"] .deep-tabs button[aria-selected="true"] { background: #102A18; color: #8CFFA8; box-shadow: inset 0 0 10px rgba(120,255,150,.3); }
+html[data-look="mission"] .deep-caption { font-family: var(--mono); font-size: 16px; color: #8CFFA8; }
+html[data-look="mission"] .trend-actions .iso-btn { background: #151B19; color: #FFD25A; border: 1px solid #FFB000; border-radius: 2px; font-family: var(--mono); font-size: 15px; }
+html[data-look="mission"] .trend-result .x { color: #8CFFA8; border: 1px solid #8CFFA8; background: transparent; }
+
+/* =====================================================================
+   6. RISO · two-ink zine. Cream stock, blue + fluoro pink overprint,
+      misregistered headings, halftone fills.
+   ===================================================================== */
+html[data-look="riso"] {
+  --ground: #F4EFE4 !important; --ground-2: #ECE5D6 !important; --bone: #2B44B8 !important; --bone-2: #2B44B8 !important;
+  --muted: #6A78C8 !important; --line: #C9C3E6 !important; --signal: #FF4FA3 !important; --panel: #FBF7EE !important; --panel-text: #2B44B8 !important;
+  --card-ink: #2B44B8 !important;
+  --halftone-pink: radial-gradient(circle, rgba(255,79,163,.55) 1.4px, transparent 1.6px) 0 0 / 6px 6px;
+  --halftone-blue: radial-gradient(circle, rgba(43,68,184,.35) 1.2px, transparent 1.4px) 0 0 / 5px 5px;
+  color-scheme: light;
+}
+html[data-look="riso"] #globe { background: var(--halftone-blue), #F4EFE4; }
+html[data-look="riso"] .mark .word { color: #2B44B8; text-shadow: 2px 1px 0 rgba(255,79,163,.85); }
+html[data-look="riso"] .modes { background: #F4EFE4; border: 2px solid #2B44B8; }
+html[data-look="riso"] .mode { background: transparent; color: #2B44B8; border-radius: 0; }
+html[data-look="riso"] .mode.is-on { background: var(--halftone-pink), #FFD3E8; color: #2B44B8; }
+html[data-look="riso"] .trend-panel { background: #F4EFE4; border-right: 2px solid #2B44B8; }
+html[data-look="riso"] .trend-head { background: #F4EFE4; border-bottom: 2px solid #2B44B8; }
+html[data-look="riso"] .trend-head::after { content: ""; display: block; height: 14px; margin-top: 12px; background: var(--halftone-pink); }
+html[data-look="riso"] .trend-panel h1 { color: #2B44B8; text-shadow: 3px 2px 0 rgba(255,79,163,.9); mix-blend-mode: multiply; }
+html[data-look="riso"] .eyebrow { color: #FF4FA3; }
+html[data-look="riso"] .trend-field-label { color: #2B44B8; }
+html[data-look="riso"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button) {
+  background: #FBF7EE; color: #2B44B8; border: 1.5px solid #2B44B8; border-radius: 0; box-shadow: 2px 2px 0 #FF4FA3;
+}
+html[data-look="riso"] :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button).is-on { background: #2B44B8; color: #F4EFE4; box-shadow: 2px 2px 0 #FF4FA3; }
+html[data-look="riso"] .trend-cases button { background: #FFE0EF; color: #2B44B8; border: 1.5px solid #2B44B8; border-radius: 0; box-shadow: 3px 3px 0 #FF4FA3; }
+html[data-look="riso"] .trend-cases button small { color: #FF4FA3; }
+html[data-look="riso"] .trend-run { background: #FF4FA3; color: #2B44B8; border: 2px solid #2B44B8; border-radius: 0; box-shadow: 3px 3px 0 #2B44B8; }
+html[data-look="riso"] .trend-ask input { background: #FBF7EE; color: #2B44B8; border: 1.5px solid #2B44B8; border-radius: 0; }
+html[data-look="riso"] .trend-result { background: #FBF7EE; color: #2B44B8; border: 2px solid #2B44B8; border-radius: 0; box-shadow: 8px 8px 0 #FF4FA3; }
+html[data-look="riso"] .trend-result h2 { color: #2B44B8; text-shadow: 2px 2px 0 rgba(255,79,163,.85); }
+html[data-look="riso"] .trend-headline b { color: #2B44B8; text-shadow: 4px 3px 0 rgba(255,79,163,.85); }
+html[data-look="riso"] .trend-badge { background: #FF4FA3; color: #2B44B8; border: 0; border-radius: 0; }
+html[data-look="riso"] .trend-chart-wrap { background: #FFFDF7; border: 1.5px solid #2B44B8; }
+html[data-look="riso"] .deep-read { background: #FFFDF7; border: 1.5px solid #2B44B8; }
+html[data-look="riso"] .deep-tabs { background: #2B44B8; box-shadow: none; border-radius: 0; }
+html[data-look="riso"] .deep-tabs button { color: #C9D2FF; border-radius: 0; }
+html[data-look="riso"] .deep-tabs button[aria-selected="true"] { background: #FF4FA3; color: #2B44B8; box-shadow: none; }
+html[data-look="riso"] .trend-actions .iso-btn { border: 1.5px solid #2B44B8; color: #2B44B8; background: #FBF7EE; border-radius: 0; box-shadow: 2px 2px 0 #FF4FA3; }
