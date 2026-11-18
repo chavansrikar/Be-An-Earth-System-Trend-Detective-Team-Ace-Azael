@@ -162,7 +162,8 @@ export function decimalsFor(id: VariableId) {
 export function fmt(v: number, digits: number) {
   if (!Number.isFinite(v)) return '—';
   const abs = Math.abs(v);
-  if (abs !== 0 && abs < 10 ** -digits) return v.toExponential(1);
+  // Small values: two significant figures as a plain decimal (0.064, not 6.4e-2); exponent only below 1e-4.
+  if (abs !== 0 && abs < 10 ** -digits) return abs < 1e-4 ? v.toExponential(1) : String(Number(v.toPrecision(2)));
   return v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 

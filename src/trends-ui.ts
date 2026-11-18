@@ -59,6 +59,21 @@ const compare = {
 let compareSeq = 0;
 let lastGeocodeAt = 0;
 
+/** v2 console: broadcast state so instruments stay in sync with whichever control changed it. */
+function emit(type: string, detail: Record<string, unknown> = {}) {
+  document.dispatchEvent(new CustomEvent('atlas:state', { detail: { type, ...detail } }));
+}
+let lastRunKey = '';
+export function trendSnapshot() {
+  return {
+    place: state.place, variable: state.variable, group: activeGroup,
+    start: Number($<HTMLSelectElement>('trend-start').value) || state.start,
+    end: Number($<HTMLSelectElement>('trend-end').value) || state.end,
+    view: compare.view, chart: state.chart, base: state.base, loading: state.loading,
+    result: state.result, ai: state.ai, lastRunKey,
+  };
+}
+
 const YEAR_MIN = 1981;
 const YEAR_MAX = 2025;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -533,6 +548,7 @@ function setView(view: TrendView) {
     showExplore(view);
     setResultOpen(!$('map-result').hidden || !$('sweep-result').hidden);
   }
+  emit('view', { view });
 }
 
 /** Open comparison mode, optionally seeded with the place the viewer is already looking at. */
@@ -598,6 +614,7 @@ function paintActive() {
     : info.source === 'water'
       ? 'Ground gauge · no NASA GIBS layer for streamflow.'
       : 'No matching NASA GIBS image for this variable. The time series is still NASA POWER.';
+  emit('paint');
 }
 
 function bindEvents() {
@@ -618,6 +635,8 @@ function bindEvents() {
       setView(v === 'compare' || v === 'map' || v === 'sweep' ? v : 'single');
     });
   });
+  $('trend-start').addEventListener('change', () => emit('years'));
+  $('trend-end').addEventListener('change', () => emit('years'));
   $('compare-count').addEventListener('change', buildCompareRows);
   $('compare-close').addEventListener('click', () => { $('compare-result').hidden = true; setResultOpen(false); });
   $('compare-csv').addEventListener('click', downloadCompareCsv);
@@ -659,6 +678,7 @@ function bindEvents() {
     state.chart = mode;
     document.querySelectorAll<HTMLButtonElement>('#trend-chart-legend button').forEach((x) => x.classList.toggle('is-on', x.dataset.chart === mode));
     if (state.result) drawChart(state.result);
+    emit('chart', { chart: mode });
   });
   window.addEventListener('resize', () => {
     if (state.result && !$('trend-result').hidden) drawChart(state.result);
@@ -689,6 +709,7 @@ function setPlace(place: Place, updateInput = true) {
   state.place = place;
   if (updateInput) $<HTMLInputElement>('trend-place').value = place.name;
   paintActive();
+  emit('place', { place });
   if (!globe) return;
   globe.setMarker(place.lat, place.lon, place.name);
   if (state.result) updateOverlay();
@@ -750,6 +771,7 @@ async function probeAi() {
     state.aiModel = '';
   }
   applyAiVisibility();
+  emit('ai', { ai: state.ai, model: state.aiModel });
 }
 
 async function locate(q: string) {
@@ -803,6 +825,7 @@ async function runCompare() {
   state.end = end;
   const btn = $<HTMLButtonElement>('trend-run');
   btn.disabled = true;
+  emit('run-start', { view: 'compare', variable, start, end });
   status.classList.remove('bad');
   status.textContent = `Resolving ${count} places…`;
   try {
@@ -853,6 +876,7 @@ async function runCompare() {
       state.loading = false;
       btn.disabled = false;
       updateRunLabel();
+      emit('run-end', { view: 'compare' });
     }
   }
 }
@@ -921,6 +945,9 @@ async function run() {
   state.loading = true;
   const btn = $<HTMLButtonElement>('trend-run');
   btn.disabled = true;
+  lastRunKey = `${place.name}|${place.lat}|${place.lon}|${variable}|${start}|${end}`;
+  const t0 = performance.now();
+  emit('run-start', { place, variable, start, end });
   status.classList.remove('bad');
   status.textContent = info.source === 'water'
     ? `Finding the nearest USGS or ECCC streamflow gauge for ${place.name}…`
@@ -934,14 +961,17 @@ async function run() {
       ? `${g.source} gauge ${g.id} · ${r.period.years} complete years · ${g.distanceKm} km from the centre · updated ${new Date(r.source.accessed).toLocaleDateString()}`
       : `NASA POWER · ${r.period.years} complete years · ${r.place.samples} sample${r.place.samples === 1 ? '' : 's'} · updated ${new Date(r.source.accessed).toLocaleDateString()}`;
     render(r);
+    emit('run-ok', { ms: Math.round(performance.now() - t0), result: r });
   } catch (err) {
     if (seq !== runSeq) return;
     status.classList.add('bad');
     status.textContent = err instanceof Error ? err.message : String(err);
+    emit('run-error', { message: status.textContent });
   } finally {
     if (seq === runSeq) {
       state.loading = false;
       btn.disabled = false;
+      emit('run-end');
     }
   }
 }
@@ -1475,7 +1505,8 @@ function drawChart(r: TrendResult) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, h);
 
-  const css = getComputedStyle(document.documentElement);
+  // Read the ink from the canvas itself so a skin can recolour just the plot.
+  const css = getComputedStyle(canvas);
   const ink = css.getPropertyValue('--panel-text').trim() || '#111';
   const color = variableById(r.variable.id).color;
   const d = decimalsFor(r.variable.id);

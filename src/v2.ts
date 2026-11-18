@@ -4,21 +4,23 @@ import { type Place, type TrendResult, type VariableId, VARIABLES } from './tren
 import { initDeepRead, renderDeepRead } from './deepread';
 import './v2.css';
 import './looks.css';
+import { initConsole } from './console/console';
 
-const LOOKS = ['field', 'modern', 'survey', 'skeuo', 'editorial', 'mission', 'riso'] as const;
+const LOOKS = ['apollo', 'field', 'modern', 'survey', 'skeuo', 'editorial', 'mission', 'riso'] as const;
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let last: TrendResult | null = null;
 
 export function initV2() {
   // ?look= picks a skin from the style study; field (the v2 default) keeps html.v2.
-  const look = new URLSearchParams(location.search).get('look') ?? 'field';
+  const look = new URLSearchParams(location.search).get('look') ?? 'apollo';
   if (look === 'field' || !(LOOKS as readonly string[]).includes(look)) document.documentElement.classList.add('v2');
   else document.documentElement.dataset.look = look;
   initDeepRead();
   addShareButton();
   addSheetGrip();
   stagePanelIntro();
+  if (document.documentElement.dataset.look === 'apollo') initConsole();
 }
 
 /** Called by trends-ui render() once the result card is filled. */

@@ -119,7 +119,7 @@ function setup() {
   canvas.height = Math.round(h * dpr);
   const ctx = canvas.getContext('2d')!;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const css = getComputedStyle(document.documentElement);
+  const css = getComputedStyle(canvas);
   const ink = css.getPropertyValue('--panel-text').trim() || '#120e0c';
   ctx.font = '10px "Monaspace Krypton", ui-monospace, monospace';
   ctx.textBaseline = 'middle';
