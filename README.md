@@ -1,5 +1,7 @@
 # ATLAS EARTH
 
+> **v2 branch:** everything added after the Warangal local event is listed in [V2_CHANGES.md](V2_CHANGES.md).
+
 **NASA Space Apps Challenge 2026 · “Be An Earth System Trend Detective!”**
 
 Pick a NASA Earth variable and a place. ATLAS draws the 30-year record, measures the trend, tests whether it is statistically significant, and shows the same planet in NASA imagery. It is the friend's ATLAS Live interface, rebuilt around a working NASA data core that needs no paid token.

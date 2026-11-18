@@ -1,4 +1,5 @@
 import '@fontsource-variable/science-gothic/full.css';
+import { initV2, readTrendLink } from './v2';
 import '@fontsource-variable/mona-sans/wdth.css';
 import '@fontsource/monaspace-krypton/400.css';
 import '@fontsource/monaspace-krypton/600.css';
@@ -2127,6 +2128,7 @@ if (new URLSearchParams(location.search).has('debug')) (window as unknown as Rec
 
 // The NASA trend screen is the front door. The hologram modes stay one tap away.
 initTrends();
+initV2();
 // The ask boxes only appear once we know a keyed model is live.
 void refreshGlobeAgent();
 
@@ -2145,4 +2147,7 @@ void refreshGlobeAgent();
   else if (q.get('mode') === 'globe') setMode('globe');
   else if (q.get('mode') === 'library') setMode('library');
   else setMode('trends');
+  // v2: ?trend=lat,lon&var=… reopens a shared trend result.
+  const link = !target ? readTrendLink() : null;
+  if (link) openTrendAt(link.place, link.variable, link.start, link.end);
 }

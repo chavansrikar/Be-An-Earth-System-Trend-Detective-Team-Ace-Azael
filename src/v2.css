@@ -1,0 +1,215 @@
+/* ATLAS v2 · "Field Instrument"
+   Neo-brutalist frame (hard ink rules, offset shadows, exposed grid) with skeuomorphic
+   detail only where it carries meaning: keys that press, case-file folder tabs, a rubber
+   stamp for the significance verdict, LEDs for state, paper grain on printed surfaces.
+   Everything is scoped to html.v2 body and reads the theme variables, so every ?theme= works. */
+
+html.v2 body {
+  --v2-deep: color-mix(in srgb, var(--ground) 42%, #05061a);
+  --v2-rule: color-mix(in srgb, var(--bone) 55%, var(--ground));
+  --v2-press: cubic-bezier(.3, 1.4, .5, 1);
+  --v2-ease: cubic-bezier(.2, .7, .2, 1);
+  --v2-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Paper grain over the whole print. */
+html.v2 body::after {
+  content: ""; position: fixed; inset: 0; z-index: 50; pointer-events: none;
+  background-image: var(--v2-grain); background-size: 160px; opacity: .05; mix-blend-mode: multiply;
+}
+
+/* ---------- Masthead ---------- */
+html.v2 body .modes { border: 2px solid var(--v2-rule); box-shadow: 4px 4px 0 var(--v2-deep); background: var(--ground); }
+html.v2 body .mode { position: relative; transition: background .18s, color .18s; }
+html.v2 body .mode + .mode { border-left: 2px solid var(--v2-rule); }
+html.v2 body .mode.is-on { box-shadow: inset 0 3px 0 color-mix(in srgb, var(--panel-text) 22%, transparent); }
+html.v2 body .mode.is-on .mode-name::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; vertical-align: 1px; border-radius: 50%;
+  background: var(--signal); box-shadow: 0 0 0 2px color-mix(in srgb, var(--signal) 25%, transparent), 0 0 8px var(--signal);
+}
+
+/* ---------- Left instrument panel ---------- */
+html.v2 body .trend-panel {
+  background:
+    radial-gradient(color-mix(in srgb, var(--bone) 13%, transparent) 1px, transparent 1.2px) 0 0 / 14px 14px,
+    var(--ground);
+  border-right: 2px solid var(--v2-rule);
+}
+html.v2 body .trend-head { background: var(--ground); border-bottom: 2px solid var(--v2-rule); backdrop-filter: none; }
+html.v2 body .trend-panel h1 { letter-spacing: .005em; }
+html.v2 body .trend-panel h1::after {
+  content: ""; display: block; width: 56px; height: 6px; margin-top: 10px; background: var(--signal);
+  box-shadow: 3px 3px 0 var(--v2-deep);
+}
+html.v2 body .trend-field-label { color: var(--bone); opacity: .8; display: flex; align-items: center; gap: 8px; }
+html.v2 body .trend-field-label::after { content: ""; flex: 1; height: 0; border-top: 1px dashed color-mix(in srgb, var(--bone) 40%, transparent); }
+
+/* Keys: every selectable control behaves like a physical key. */
+html.v2 body :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button, .trend-years label, .compare-row) {
+  border: 1.5px solid var(--v2-rule);
+  background: color-mix(in srgb, var(--ground) 80%, #000 8%);
+  color: var(--bone);
+  box-shadow: 3px 3px 0 var(--v2-deep);
+  transition: transform .14s var(--v2-press), box-shadow .14s var(--v2-press), background .18s, color .18s;
+}
+html.v2 body :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button):hover {
+  transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--v2-deep);
+}
+html.v2 body :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button, .trend-groups button):active {
+  transform: translate(3px, 3px); box-shadow: 0 0 0 var(--v2-deep);
+}
+html.v2 body :is(.trend-presets button, .trend-var, .trend-view button, .trend-basemap button).is-on {
+  background: var(--panel); color: var(--panel-text); border-color: var(--panel-text);
+  transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--v2-deep), inset 0 2px 0 color-mix(in srgb, var(--panel-text) 18%, transparent);
+}
+html.v2 body .trend-groups button.is-on { background: var(--signal); color: var(--card-ink); border-color: var(--signal); }
+html.v2 body .trend-view { border: 0; gap: 6px; }
+html.v2 body .trend-view button + button { border-left: 1.5px solid var(--v2-rule); }
+html.v2 body .trend-vars, html.v2 body .trend-presets { gap: 7px; }
+html.v2 body .trend-var .swatch { width: 8px; height: 26px; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #000 30%, transparent); }
+html.v2 body .trend-var.is-on .swatch { box-shadow: 0 0 10px var(--vc), inset 0 0 0 1.5px color-mix(in srgb, #000 30%, transparent); }
+
+/* Case files: manila folders with a tab. */
+html.v2 body .trend-cases-row { gap: 8px; padding-top: 9px; }
+html.v2 body .trend-cases button {
+  position: relative; border: 1.5px solid var(--panel-text); border-radius: 0 3px 3px 3px;
+  background: #E9DCC0; color: #2A2216;
+  box-shadow: 3px 3px 0 var(--v2-deep); text-align: left;
+  transition: transform .16s var(--v2-press), box-shadow .16s var(--v2-press);
+}
+html.v2 body .trend-cases button::before {
+  content: ""; position: absolute; left: -1.5px; top: -10px; width: 46%; height: 10px;
+  background: #E9DCC0; border: 1.5px solid var(--panel-text); border-bottom: 0; border-radius: 3px 6px 0 0;
+  clip-path: polygon(0 0, 82% 0, 100% 100%, 0 100%);
+}
+html.v2 body .trend-cases button small { color: #7A3B12; opacity: 1; }
+html.v2 body .trend-cases button:hover { transform: translateY(-3px) rotate(-.6deg); box-shadow: 4px 6px 0 var(--v2-deep); }
+html.v2 body .trend-cases button.is-on, html.v2 body .trend-cases button.is-on::before { background-color: var(--signal); color: var(--card-ink); }
+html.v2 body .trend-cases button.is-on small { color: var(--card-ink); }
+html.v2 body .trend-case-note { border-left: 4px solid var(--signal); background: color-mix(in srgb, var(--ground) 70%, #000 12%); padding: 8px 10px; }
+
+/* The run key: the one loud control. */
+html.v2 body .trend-run {
+  position: relative; min-height: 52px; border: 2px solid var(--panel-text);
+  background: var(--signal); color: var(--card-ink);
+  font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  box-shadow: 5px 5px 0 var(--v2-deep);
+  transition: transform .14s var(--v2-press), box-shadow .14s var(--v2-press);
+}
+html.v2 body .trend-run::after { content: "→"; margin-left: 10px; transition: transform .2s var(--v2-ease); display: inline-block; }
+html.v2 body .trend-run:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 6px 6px 0 var(--v2-deep); }
+html.v2 body .trend-run:hover:not(:disabled)::after { transform: translateX(4px); }
+html.v2 body .trend-run:active:not(:disabled) { transform: translate(5px, 5px); box-shadow: 0 0 0 var(--v2-deep); }
+html.v2 body .trend-run:disabled {
+  opacity: 1; cursor: progress; transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--v2-deep);
+  background: repeating-linear-gradient(-45deg, var(--signal) 0 10px, color-mix(in srgb, var(--signal) 70%, #fff) 10px 20px) 0 0 / 28.28px 28.28px;
+  animation: v2-stripes .7s linear infinite;
+}
+@keyframes v2-stripes { to { background-position: 28.28px 0; } }
+html.v2 body .trend-status::before { content: "●"; margin-right: 6px; color: color-mix(in srgb, var(--bone) 45%, transparent); }
+html.v2 body .trend-status:not(:empty)::before { color: #6BE08A; text-shadow: 0 0 6px #6BE08A; }
+html.v2 body .trend-status.bad::before { color: var(--signal); text-shadow: 0 0 6px var(--signal); }
+
+/* ---------- Result card: a printed report clipped to the instrument ---------- */
+html.v2 body .trend-result {
+  border: 2px solid var(--panel-text);
+  background: var(--panel);
+  box-shadow: 8px 8px 0 var(--v2-deep);
+  animation: v2-card .5s var(--v2-ease);
+}
+@keyframes v2-card { from { opacity: 0; transform: translate(14px, 0) rotate(.6deg); } }
+html.v2 body .trend-result-top { border-bottom: 2px solid var(--panel-text); padding-bottom: 6px; color: var(--panel-text); }
+html.v2 body #trend-kicker::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 0;
+  background: #2FBF5B; box-shadow: 0 0 6px #2FBF5B;
+}
+html.v2 body .trend-result .x { border: 1.5px solid var(--panel-text); width: 30px; height: 30px; font-size: 18px; box-shadow: 2px 2px 0 var(--panel-text); }
+html.v2 body .trend-result .x:active { transform: translate(2px, 2px); box-shadow: none; }
+html.v2 body .trend-result h2 { font-size: 30px; }
+html.v2 body .trend-headline { border-top: 0; align-items: center; padding-top: 4px; }
+html.v2 body .trend-headline b { font-size: clamp(44px, 4.2vw, 58px); font-variant-numeric: tabular-nums; }
+
+/* Rubber stamp verdict. */
+html.v2 body .trend-badge {
+  position: relative; padding: 7px 10px; border: 3px double currentColor; font-weight: 700; font-size: 10.5px; letter-spacing: .12em;
+  transform: rotate(-5deg); background: color-mix(in srgb, currentColor 6%, transparent);
+  -webkit-mask: var(--v2-grain) 0 0 / 90px, linear-gradient(#000, #000); -webkit-mask-composite: xor; mask-composite: exclude;
+}
+html.v2 body .trend-badge.strong, html.v2 body .trend-badge.sig { color: #17803D; }
+html.v2 body .trend-badge.weak { color: #B06F00; }
+html.v2 body .trend-badge.none { color: #8B4A55; }
+html.v2 body .trend-badge.v2-stamp { animation: v2-stamp .5s .45s both cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes v2-stamp {
+  0% { opacity: 0; transform: rotate(-12deg) scale(2.2); }
+  60% { opacity: 1; transform: rotate(-4deg) scale(.94); }
+  100% { opacity: 1; transform: rotate(-5deg) scale(1); }
+}
+
+html.v2 body .trend-summary { font-size: 14px; line-height: 1.5; }
+html.v2 body .trend-chart-wrap { border-top: 2px solid var(--panel-text); border-bottom: 2px solid var(--panel-text); background: color-mix(in srgb, var(--panel) 86%, #fff); }
+html.v2 body .trend-chart-legend button { border: 1.5px solid var(--panel-text); box-shadow: 2px 2px 0 var(--panel-text); transition: transform .12s var(--v2-press), box-shadow .12s; }
+html.v2 body .trend-chart-legend button.is-on { transform: translate(2px, 2px); box-shadow: none; }
+html.v2 body .trend-key i { font-style: normal; color: #D6237E; }
+
+/* Ledger stats, printed in one row at a time. */
+html.v2 body .trend-stats > div { border-top: 1px dashed color-mix(in srgb, var(--panel-text) 35%, transparent); }
+html.v2 body .trend-stats > div.v2-in { animation: v2-row .45s both var(--v2-ease); animation-delay: calc(var(--i, 0) * 45ms + 250ms); }
+@keyframes v2-row { from { opacity: 0; transform: translateY(6px); } }
+
+html.v2 body .trend-actions { gap: 8px; }
+html.v2 body .trend-actions .iso-btn {
+  border: 1.5px solid var(--panel-text); color: var(--panel-text); box-shadow: 3px 3px 0 var(--panel-text);
+  transition: transform .12s var(--v2-press), box-shadow .12s var(--v2-press), background .15s, color .15s;
+}
+html.v2 body .trend-actions .iso-btn:hover { background: var(--panel-text); color: var(--panel); }
+html.v2 body .trend-actions .iso-btn:active, html.v2 body .trend-actions .iso-btn[aria-pressed="true"] { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--panel-text); }
+
+/* ---------- Deep read ---------- */
+.deep-read { display: grid; gap: 8px; border: 2px solid var(--panel-text); padding: 10px 10px 8px; background: color-mix(in srgb, var(--panel) 90%, #fff); }
+.deep-read[hidden] { display: none; }
+.deep-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.deep-kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+.deep-tabs { display: flex; padding: 3px; gap: 3px; background: var(--panel-text); border-radius: 3px; box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45); }
+.deep-tabs button {
+  border: 0; background: transparent; color: color-mix(in srgb, var(--panel) 72%, transparent); border-radius: 2px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; padding: 6px 8px; min-height: 28px;
+  transition: background .18s, color .18s, box-shadow .18s;
+}
+.deep-tabs button:hover { color: var(--panel); }
+.deep-tabs button[aria-selected="true"] {
+  background: linear-gradient(var(--panel), color-mix(in srgb, var(--panel) 82%, #000)); color: var(--panel-text);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 2px 0 rgba(0, 0, 0, .35);
+}
+.deep-stage { position: relative; }
+.deep-stage canvas { display: block; width: 100%; height: 150px; touch-action: pan-y; }
+.deep-tip {
+  position: absolute; pointer-events: none; white-space: nowrap; z-index: 2;
+  background: var(--panel-text); color: var(--panel); font-family: var(--mono); font-size: 10px; padding: 5px 7px;
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--signal) 80%, transparent);
+}
+.deep-caption { margin: 0; font-size: 12.5px; line-height: 1.45; }
+
+/* ---------- Mobile sheet ---------- */
+.sheet-grip { display: none; }
+@media (max-width: 760px) {
+  html.v2 body .trend-result { box-shadow: 0 -6px 0 var(--v2-deep); border-width: 2px 0 0; transition: max-height .35s var(--v2-ease); animation: v2-sheet .45s var(--v2-ease); }
+  html.v2 body .trend-result.is-expanded { max-height: 88vh; }
+  @keyframes v2-sheet { from { transform: translateY(40%); } }
+  .sheet-grip {
+    display: block; position: sticky; top: -14px; z-index: 3; align-self: center; flex: none;
+    width: 100%; height: 22px; margin: -14px 0 -4px; border: 0; background: transparent; cursor: grab; touch-action: none;
+  }
+  .sheet-grip::before { content: ""; display: block; width: 48px; height: 5px; margin: 8px auto 0; border-radius: 3px; background: var(--panel-text); opacity: .45; }
+  html.v2 body .trend-result h2 { font-size: 24px; }
+  html.v2 body .trend-headline b { font-size: 40px; }
+  .deep-tabs button { padding: 6px 6px; font-size: 9px; }
+}
+
+/* ---------- First load: the instrument powers on ---------- */
+html.v2.v2-intro body .trend-panel > * { animation: v2-rise .6s both var(--v2-ease); animation-delay: calc(var(--i, 0) * 70ms + 120ms); }
+html.v2.v2-intro body .modes { animation: v2-rise .5s both var(--v2-ease); }
+@keyframes v2-rise { from { opacity: 0; transform: translateY(14px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  html.v2 body *, html.v2 body *::before, html.v2 body *::after { animation: none !important; transition: none !important; }
+}

@@ -3,6 +3,7 @@ import {
   PRESETS, VARIABLES, GROUPS, variableById, fetchTrend, explain, fmt, decimalsFor, trendStrength,
   type Place, type TrendResult, type VariableId, type VariableGroup,
 } from './trends';
+import { onTrendRendered } from './v2';
 import { initExplore, runMap, runSweep, hideExplore, showExplore, hasMap } from './explore-ui';
 
 /**
@@ -278,15 +279,15 @@ export function flyGlobeTab(lat: number, lon: number, name: string, distance = 2
 }
 
 /** Open the Trend Detective at a place, reusing the same 30-year NASA record. */
-export function openTrendAt(place: Place, variable: VariableId = 't2m') {
+export function openTrendAt(place: Place, variable: VariableId = 't2m', from = 1996, to = 2025) {
   setView('single');
   const start = document.getElementById('trend-start') as HTMLSelectElement | null;
   const end = document.getElementById('trend-end') as HTMLSelectElement | null;
   const input = document.getElementById('trend-place') as HTMLInputElement | null;
   state.place = place;
   state.variable = variable;
-  state.start = 1996;
-  state.end = 2025;
+  state.start = from;
+  state.end = to;
   const group = variableById(variable).group;
   if (group !== activeGroup) {
     activeGroup = group;
@@ -1054,6 +1055,7 @@ function render(r: TrendResult) {
   $('trend-year-read').textContent = String(state.year);
   applyGlobe();
   drawChart(r);
+  onTrendRendered(r);
 }
 
 function renderCompare(entries: CompareEntry[], start: number, end: number) {
@@ -1542,17 +1544,52 @@ function drawChart(r: TrendResult) {
     });
 
     if (r.stats) {
-      const midX = (r.stats.firstYear + r.stats.lastYear) / 2;
-      const yAt = (x: number) => r.stats!.mean + r.stats!.senPerYear * (x - midX);
+      const st = r.stats;
+      const xs = annual.map((p) => p.year), ys = annual.map((p) => p.v);
+      // Sen line through the median intercept (scipy.stats.theilslopes), with the 95% band
+      // drawn as the two Gilbert-interval slopes pivoting on the median year.
+      const med = (a: number[]) => { const b = [...a].sort((u, v) => u - v); const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+      const b0 = med(ys.map((y, i) => y - st.senPerYear * xs[i]));
+      const xm = med(xs), ym = st.senPerYear * xm + b0;
+      const at = (slope: number, x: number) => ym + slope * (x - xm);
+      const ci = st.senCi95 ?? st.olsCi95;
+      const xa = st.firstYear, xb = st.lastYear;
+      ctx.fillStyle = ink;
+      ctx.globalAlpha = 0.09;
+      ctx.beginPath();
+      ctx.moveTo(sx(xa), sy(at(ci[0], xa)));
+      ctx.lineTo(sx(xm), sy(ym));
+      ctx.lineTo(sx(xb), sy(at(ci[1], xb)));
+      ctx.lineTo(sx(xb), sy(at(ci[0], xb)));
+      ctx.lineTo(sx(xm), sy(ym));
+      ctx.lineTo(sx(xa), sy(at(ci[1], xa)));
+      ctx.closePath();
+      ctx.fill();
       ctx.strokeStyle = ink;
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = 0.7;
       ctx.lineWidth = 1.2;
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
-      ctx.moveTo(sx(r.stats.firstYear), sy(yAt(r.stats.firstYear)));
-      ctx.lineTo(sx(r.stats.lastYear), sy(yAt(r.stats.lastYear)));
+      ctx.moveTo(sx(xa), sy(at(st.senPerYear, xa)));
+      ctx.lineTo(sx(xb), sy(at(st.senPerYear, xb)));
       ctx.stroke();
       ctx.setLineDash([]);
+      const cp = st.changePoint;
+      if (cp && cp.significant) {
+        const cx = sx(cp.year - 0.5);
+        ctx.strokeStyle = '#FF4FA3';
+        ctx.globalAlpha = 0.85;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(cx, pad.t); ctx.lineTo(cx, pad.t + plotH); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(sx(xa), sy(cp.before)); ctx.lineTo(cx, sy(cp.before)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx, sy(cp.after)); ctx.lineTo(sx(xb), sy(cp.after)); ctx.stroke();
+        ctx.fillStyle = '#FF4FA3';
+        ctx.textAlign = cx > pad.l + plotW * 0.7 ? 'right' : 'left';
+        ctx.fillText(`shift ${cp.year}`, cx + (ctx.textAlign === 'right' ? -4 : 4), pad.t + 4);
+      }
       ctx.globalAlpha = 1;
     }
   }
