@@ -44,9 +44,24 @@ export const THEMES: Record<string, Theme> = {
   },
 };
 
+// v2 console screens: a phosphor CRT (default for the Apollo console) and a daylight print.
+THEMES.console = {
+  id: 'console', name: 'CRT console',
+  ground: '#07090A', ink: '#9CF5B4', accent: '#FFB020',
+  text: '#E8E3D6', muted: '#8F8B7F', line: '#24302A', panel: '#E8E3D6', panelText: '#161817', glow: true,
+};
+THEMES.daylight = {
+  id: 'daylight', name: 'Daylight console',
+  ground: '#ECE8DF', ink: '#1B1D1C', accent: '#E0392B',
+  text: '#1B1D1C', muted: '#5E5B52', line: '#C9C2B2', panel: '#1B1D1C', panelText: '#ECE8DF', glow: false,
+};
+
 export function pickTheme(): Theme {
-  const q = new URLSearchParams(location.search).get('theme');
-  return THEMES[q || ''] || THEMES.riso;
+  const p = new URLSearchParams(location.search);
+  const q = p.get('theme');
+  if (THEMES[q || '']) return THEMES[q!];
+  // The Apollo console (the v2 default look) runs on the CRT screen unless told otherwise.
+  return (p.get('look') ?? 'apollo') === 'apollo' ? THEMES.console : THEMES.riso;
 }
 
 export function applyCss(t: Theme) {

@@ -64,6 +64,9 @@ function emit(type: string, detail: Record<string, unknown> = {}) {
   document.dispatchEvent(new CustomEvent('atlas:state', { detail: { type, ...detail } }));
 }
 let lastRunKey = '';
+/** v2 console: the Trends globe, for God's Eye View. */
+export function trendGlobe() { return globe; }
+
 export function trendSnapshot() {
   return {
     place: state.place, variable: state.variable, group: activeGroup,

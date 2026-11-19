@@ -130,6 +130,9 @@ export class Knob<T> {
     let start = 0, startIdx = 0, dragging = false;
     const step = this.opts.kind === 'dial' ? 9 : 26;
     body.addEventListener('pointerdown', (e) => {
+      // Stops the drag from selecting text across the page.
+      e.preventDefault();
+      body.focus({ preventScroll: true });
       dragging = true; start = e.clientY - e.clientX; startIdx = this.idx;
       body.setPointerCapture(e.pointerId);
       this.el.classList.add('grab');
@@ -233,7 +236,7 @@ export class SegDisplay {
     for (let i = 0; i < n; i++) {
       const g = svg('g', { transform: `translate(${i * W + 2} 2) skewX(-6)` });
       for (const [k, d] of Object.entries(paths)) g.append(svg('path', { d, 'data-s': k, class: 'sg' }));
-      const dot = svg('circle', { cx: 20.5, cy: 35, r: 1.6, class: 'sg dp' });
+      const dot = svg('circle', { cx: 20.8, cy: 35, r: 2.1, class: 'sg dp' });
       g.append(dot);
       this.dots.push(dot);
       s.append(g);
@@ -470,18 +473,39 @@ export class CrtLog {
 // ---------------------------------------------------------------------------
 // Panel module frame: engraved plate with code, title, purpose and an INFO button
 // ---------------------------------------------------------------------------
+/** Part numbers stamped on each plate: derived from the code so they stay stable. */
+function partNo(code: string) {
+  let n = 0;
+  for (const ch of code) n = (n * 31 + ch.charCodeAt(0)) % 9973;
+  return `P/N ATL-${code.replace(/[^A-Z0-9]/gi, '')}-${String(n).padStart(4, '0')}`;
+}
 export function module(code: string, title: string, help: string, cls = '') {
   const el = h('section', `pnl ${cls}`);
   el.dataset.helpRegion = help;
+  el.dataset.panel = code;
+  el.dataset.panelTitle = title;
+  el.setAttribute('aria-label', `${code} ${title}`);
   const head = h('header', 'pnl-plate');
-  head.innerHTML = '<span class="pnl-screw"></span><span class="pnl-code"></span><span class="pnl-title"></span><button type="button" class="info-btn" aria-label="">i</button><span class="pnl-screw"></span>';
+  head.innerHTML = '<span class="pnl-screw"></span><span class="pnl-code"></span><span class="pnl-title"></span><span class="pnl-pn"></span>'
+    + '<button type="button" class="info-btn" aria-label="">i</button>'
+    + '<button type="button" class="pnl-btn pnl-fold" data-act="fold" aria-expanded="true"><span aria-hidden="true"></span></button>'
+    + '<button type="button" class="pnl-btn pnl-close" data-act="close"><span aria-hidden="true">×</span></button><span class="pnl-screw"></span>';
   head.querySelector('.pnl-code')!.textContent = code;
   head.querySelector('.pnl-title')!.textContent = title;
+  head.querySelector('.pnl-pn')!.textContent = partNo(code);
   const info = head.querySelector<HTMLButtonElement>('.info-btn')!;
   info.dataset.info = help;
   info.setAttribute('aria-label', `About ${title}`);
+  const fold = head.querySelector<HTMLButtonElement>('.pnl-fold')!;
+  fold.setAttribute('aria-label', `Fold ${title}`);
+  fold.dataset.tip = 'Fold this panel to its nameplate';
+  const close = head.querySelector<HTMLButtonElement>('.pnl-close')!;
+  close.setAttribute('aria-label', `Stow ${title}`);
+  close.dataset.tip = 'Stow this panel. Bring it back from PANELS in the top rail.';
   const body = h('div', 'pnl-body');
-  el.append(head, body);
+  const wrap = h('div', 'pnl-fold-wrap');
+  wrap.append(body);
+  el.append(head, wrap);
   return { el, body };
 }
 

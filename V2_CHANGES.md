@@ -36,6 +36,35 @@ The Trends station now runs as an Apollo-era operations console. It mixes Missio
 
 None of the Apollo styling is presented as spacecraft data. MET is session time, and the lamps, log and diagnostics report this browser's real requests. The manual's "Data & honesty" chapter says this explicitly.
 
+### v2.1 additions
+- **Panels you can close.**
+  - Every panel's nameplate has a fold button (folds it to the nameplate; double-clicking the plate does the same) and a × button (stows it).
+  - The telemetry side is now six modules: TLM 01 Instrument cluster, C&W, TLM 02 Teleprinter, TLM 03 Record plot, TLM 04 Deep read, TLM 05 Data log.
+  - Small tabs on the column edges slide the whole CONTROLS, TELEMETRY or DISPLAYS column away. A labelled tab brings it back.
+  - **PANELS** in the top rail opens the panel bay. It lists every panel with its state and has *Restore all*, *Fold controls* and *Clear to globe*.
+  - The layout is remembered per browser (localStorage).
+- **God's Eye View** (`src/console/gev.ts`).
+  - Press **GOD'S EYE** or the **G** key. All panels slide off and the globe fills the screen with an orbital HUD:
+    - a DSKY readout (Apollo AGC Verb 06 Noun 43: latitude, longitude, altitude) of the cursor position and camera altitude;
+    - layer keys (MARBLE, SAT, DATA, NIGHT, LIVE SUN, GRID, SPIN);
+    - the 7 preset targets;
+    - a clickable altitude tape;
+    - a command line (`GOTO`, `LAYER`, `GRID/NIGHT/SUN/DATA/SPIN ON|OFF`, `ZOOM`, `PROBE`, `EXIT`, `HELP`);
+    - a PROBE readout that runs the real trend test without leaving the view.
+  - Press Esc or G to leave.
+  - New globe methods: `view`, `pickAt()`, `setDistance()`, `setGrid()`.
+- **The 3D stations are restyled.**
+  - New `console` theme (phosphor on black, the default for the Apollo look) and `daylight` theme (ink on paper). They are chosen with the SCREEN selector on PNL 07, or `?theme=`.
+  - The Library, Scan, Build, Places and Globe panels, the log, the ask bar and the shelf now use console modules with nameplates.
+- **INTENSITY dial** on PNL 07 sets the brightness of every CRT, LCD and segment display.
+- **Texture pass.** Paint grain, brushed nameplates, engraved lettering, corner screws, part numbers, a calibration rule down the control column, an execute decal and two-step CRT bezels.
+- **Fixes.**
+  - Dragging a knob no longer selects text on the page.
+  - The segment-display decimal point is larger.
+  - The top rail compacts at laptop widths.
+  - Nameplates shrink with their panel (container queries).
+- The offline preview shows a clear "live build only" placard on the stations that need the network.
+
 Other looks from the style study are still available with `?look=field|modern|survey|skeuo|editorial|mission|riso`.
 
 Small change in shared code: `fmt()` now prints small values as plain decimals (0.064 instead of 6.4e-2). Exponent notation is only used below 0.0001.
@@ -101,6 +130,10 @@ Every view has hover tooltips, arrow-key tab navigation and a plain-language cap
 | `src/console/instruments.ts` (new) | Reusable Knob, Toggle, Lamp, SegDisplay, Gauge, Scope and CrtLog components |
 | `src/console/help.ts` (new) | Help registry, INFO popovers, tooltips, Flight Manual, Briefing |
 | `src/console/apollo.css` (new) | The Apollo skin |
+| `src/console/bay.ts` (new) | Fold, stow, column slide-away, panel bay |
+| `src/console/gev.ts` (new) | God's Eye View HUD and command line |
+| `src/globe.ts` | Adds `view`, `pickAt()`, `setDistance()`, `setGrid()` for God's Eye View |
+| `src/theme.ts` | Adds the `console` and `daylight` themes; the Apollo look defaults to `console` |
 | `src/looks.css` (new) | The style-study looks |
 | `offline/` (shim + stub), `vite.offline.config.ts` (new) | Offline preview build only (recorded NASA POWER data); not used by the live site |
 | `src/trends-ui.ts` | Broadcasts `atlas:state` events and exports `trendSnapshot()`; the chart reads its ink colour from the canvas |

@@ -552,6 +552,50 @@ export class NasaGlobe {
     this.controls.autoRotate = false;
   }
 
+  // ---- v2 console: read-outs and overlays for God's Eye View ----
+  /** Where the camera looks (sub-camera point) and how far it is from the centre, in Earth radii. */
+  get view() { return { lat: this.viewLat, lon: this.viewLon, dist: this.camera.position.length(), spinning: this.spinning }; }
+  /** Latitude and longitude under a screen point, or null off the planet. */
+  pickAt(clientX: number, clientY: number): { lat: number; lon: number } | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const hit = ray.intersectObject(this.sphere, false)[0];
+    return hit ? vector3ToLatLon(hit.point) : null;
+  }
+  /** Zoom to a camera distance in Earth radii (1.35 to 5.5). */
+  setDistance(dist: number) {
+    this.flight = null;
+    this.viewDist = THREE.MathUtils.clamp(dist, 1.35, 5.5);
+    this.applyView();
+  }
+  private grid: THREE.LineSegments | null = null;
+  /** A latitude / longitude graticule every 15°, equator and prime meridian brighter. */
+  setGrid(on: boolean, color = 0x8cffa8) {
+    if (!this.grid) {
+      const pts: number[] = [], strong: number[] = [];
+      const push = (arr: number[], a: THREE.Vector3, b: THREE.Vector3) => arr.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      for (let lat = -75; lat <= 75; lat += 15) {
+        for (let lon = -180; lon < 180; lon += 3) push(lat === 0 ? strong : pts, latLonToVector3(lat, lon, R * 1.003), latLonToVector3(lat, lon + 3, R * 1.003));
+      }
+      for (let lon = -180; lon < 180; lon += 15) {
+        for (let lat = -84; lat < 84; lat += 3) push(lon === 0 ? strong : pts, latLonToVector3(lat, lon, R * 1.003), latLonToVector3(lat + 3, lon, R * 1.003));
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([...pts, ...strong], 3));
+      g.addGroup(0, pts.length / 3, 0);
+      g.addGroup(pts.length / 3, strong.length / 3, 1);
+      this.grid = new THREE.LineSegments(g, [
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.22, depthWrite: false }),
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6, depthWrite: false }),
+      ]);
+      this.grid.renderOrder = 3;
+      this.scene.add(this.grid);
+    }
+    this.grid.visible = on;
+  }
+
   /** Cross-fade the NASA VIIRS night lights (1 = full, 0 = off). */
   setNight(on: boolean) {
     this.nightTarget = on ? 1 : 0;

@@ -6,6 +6,8 @@ import { GROUPS, VARIABLES, variableById, fmt, type TrendResult, type VariableGr
 import { trendSnapshot } from '../trends-ui';
 import { Knob, Toggle, Lamp, SegDisplay, Gauge, Scope, CrtLog, module, infoButton, reduced } from './instruments';
 import { initHelp, openManual, startTour, briefed, STATIONS, type TourStep } from './help';
+import { initBay } from './bay';
+import { initGev, toggle as toggleGev } from './gev';
 import './apollo.css';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -55,6 +57,9 @@ export function initConsole() {
   buildLeft();
   buildRight();
   buildCentre();
+  initBay(q('.cn-rail')!, (c, t) => log.push(c, t));
+  initGev((c, t, l) => log.push(c, t, l));
+  buildPlacard();
   bindState();
   watchStation();
   startClocks();
@@ -106,7 +111,11 @@ function buildHeader() {
   brief.dataset.tip = 'A guided tour of every panel on this console';
   brief.classList.toggle('pending', !briefed());
   brief.addEventListener('click', () => { brief.classList.remove('pending'); runBriefing(); });
-  right.append(clk('MET', 'met', 'Mission Elapsed Time: time since this session began (h.m.s)'), clk('GMT', 'gmt', 'Greenwich Mean Time (UTC), used by the event log'), lamps, help, brief);
+  const gev = h('button', 'cn-key cn-gev', "GOD'S EYE") as HTMLButtonElement;
+  gev.type = 'button';
+  gev.dataset.tip = "God's Eye View: clear the console and fly the globe (key G)";
+  gev.addEventListener('click', () => { if (root.dataset.station !== 'trends') q<HTMLButtonElement>('.mode[data-mode="trends"]')?.click(); toggleGev(); });
+  right.append(clk('MET', 'met', 'Mission Elapsed Time: time since this session began (h.m.s)'), clk('GMT', 'gmt', 'Greenwich Mean Time (UTC), used by the event log'), lamps, gev, help, brief);
   bar.append(right);
 
   // Station plate + breadcrumb
@@ -125,6 +134,8 @@ function paintStation(mode: string) {
   q('.cn-stn-text strong', plate)!.textContent = `STN ${st.n} · ${st.name.toUpperCase()}`;
   q('.cn-stn-text small', plate)!.textContent = st.purpose;
   root.dataset.station = mode;
+  paintPlacard(mode);
+  if (mode !== 'trends') toggleGev(false);
   paintCrumb();
 }
 
@@ -240,9 +251,8 @@ function buildLeft() {
   p5.body.append(wrow, timeline, yearsField);
   p4.el.after(p5.el);
 
-  // PNL 06 · Significance + PNL 07 · Display, side by side
-  const pair = h('div', 'cn-pair');
-  const p6 = module('PNL 06', 'Test α', 'alpha', 'pnl-alpha');
+  // PNL 06 · Test level α
+  const p6 = module('PNL 06', 'Test level α', 'alpha', 'pnl-alpha');
   alphaKnob = new Knob<number>({
     label: 'α', kind: 'selector', help: 'alpha', size: 80, sweep: 100,
     positions: [{ value: 0.1, label: 'α 0.10 · 90% confidence', short: '.10' }, { value: 0.05, label: 'α 0.05 · 95% confidence', short: '.05' }, { value: 0.01, label: 'α 0.01 · 99% confidence', short: '.01' }],
@@ -250,8 +260,10 @@ function buildLeft() {
     onChange: (v) => { ui.alpha = v; log.push('CFG', `TEST LEVEL α ${v.toFixed(2)} · CONF ${Math.round((1 - v) * 100)}%`); paintTelemetry(); },
   });
   const aRead = h('div', 'cn-lcd cn-alpha-read');
-  aRead.innerHTML = '<b>95%</b><span>CONF</span>';
+  aRead.innerHTML = '<b>95%</b><span>CONFIDENCE · drives the VERDICT lamp and the green zone on GA 2</span>';
   p6.body.append(alphaKnob.el, aRead);
+
+  // PNL 07 · Display control
   const p7 = module('PNL 07', 'Display control', 'display', 'pnl-display');
   const tgRow = h('div', 'cn-toggles');
   tg.series = new Toggle({ label: 'SERIES', up: 'MONTH', down: 'YEAR', on: false, help: 'display', tip: 'Plot annual totals or monthly values', onChange: (on) => clickIn('#trend-chart-legend', `button[data-chart="${on ? 'monthly' : 'annual'}"]`) });
@@ -261,10 +273,30 @@ function buildLeft() {
   tg.reticle = new Toggle({ label: 'RETICLE', up: 'ON', down: 'OFF', on: true, help: 'display', tip: 'Ground-track crosshair over the globe', onChange: (on) => { ui.reticle = on; root.classList.toggle('reticle-off', !on); } });
   tgRow.append(tg.series.el, tg.base.el, tg.globe.el, tg.crt.el, tg.reticle.el);
   q('.trend-globe-row')?.classList.add('cn-hidden-src');
-  p7.body.append(tgRow);
-  pair.append(p6.el, p7.el);
-  p5.el.after(pair);
+  // Screen: CRT phosphor or daylight print for the 3D stations, and CRT intensity.
+  const curTheme = new URLSearchParams(location.search).get('theme') === 'daylight' ? 'daylight' : 'console';
+  const screenKnob = new Knob<string>({
+    label: 'SCREEN', kind: 'selector', size: 72, sweep: 70, help: 'screen',
+    positions: [{ value: 'console', label: 'CRT · phosphor on black', short: 'CRT' }, { value: 'daylight', label: 'DAY · ink on paper', short: 'DAY' }],
+    value: curTheme,
+    onChange: (v) => { const u = new URL(location.href); u.searchParams.set('theme', v); log.push('DSP', `SCREEN ${v === 'console' ? 'CRT' : 'DAY'} · RELOADING`); window.setTimeout(() => location.assign(u.href), 250); },
+  });
+  const gains = [0.7, 0.85, 1, 1.15, 1.3];
+  const intensity = new Knob<number>({
+    label: 'INTENSITY', kind: 'dial', size: 72, labels: false, every: 1, help: 'screen', tip: 'Brightness of every CRT and LCD on the console',
+    positions: gains.map((g) => ({ value: g, label: `${Math.round(g * 100)}%` })), value: 1,
+    onChange: (g) => { root.style.setProperty('--crt-gain', String(g)); seg.gain.set(String(Math.round(g * 100))); },
+  });
+  seg.gain = new SegDisplay(3, { color: 'green', label: 'CRT intensity percent' });
+  seg.gain.set('100');
+  const gainBox = h('div', 'cn-readout'); gainBox.append(h('span', 'cn-lab', 'GAIN %'), seg.gain.el);
+  const screenRow = h('div', 'cn-row cn-screen-row');
+  screenRow.append(screenKnob.el, intensity.el, gainBox);
+  p7.body.append(tgRow, screenRow);
+  p5.el.after(p6.el);
+  p6.el.after(p7.el);
   q('.trend-globe-row') && p7.body.append(q('.trend-globe-row')!);
+  const pair = p7.el;
 
   // PNL 08 · Execute
   const p8 = module('PNL 08', 'Execute', 'execute', 'pnl-exec');
@@ -357,27 +389,27 @@ function buildRight() {
   card.dataset.helpRegion = 'telemetry';
   const top = q('.trend-result-top', card)!;
   top.insertBefore(infoButton('telemetry', 'telemetry readout'), q('.x', top));
+  const headline = q('.trend-headline', card)!;
 
-  // Instrument cluster
+  // TLM 01 · Instrument cluster: three gauges over the rate readout
+  const m1 = module('TLM 01', 'Instrument cluster', 'g-rate', 'pnl-cluster');
   const cluster = h('div', 'cn-cluster');
-  cluster.dataset.helpRegion = 'g-rate';
   gRate = new Gauge({ label: 'RATE', unit: 'per decade', map: (v) => (v + 1) / 2, ticks: [], zones: [], help: 'g-rate', tip: "Sen's slope per decade; shaded arc = 95% interval" });
   gP = new Gauge({ label: 'P-VALUE', unit: 'MK · log scale', map: pMap, ticks: [{ at: 1, label: '1' }, { at: 0.3 }, { at: 0.1, label: '.1' }, { at: 0.03 }, { at: 0.01, label: '.01' }, { at: 0.003 }, { at: 0.001, label: '.001' }, { at: 0.0003 }, { at: 0.0001, label: '1e-4' }], zones: [], second: true, help: 'g-p', tip: 'White: Mann–Kendall p. Amber: Hamed–Rao p. Green zone: below α' });
   gTau = new Gauge({ label: 'KENDALL τ', unit: 'consistency', map: (v) => (v + 1) / 2, ticks: [{ at: -1, label: '-1' }, { at: -0.75 }, { at: -0.5, label: '-.5' }, { at: -0.25 }, { at: 0, label: '0' }, { at: 0.25 }, { at: 0.5, label: '.5' }, { at: 0.75 }, { at: 1, label: '1' }], help: 'g-tau', tip: 'Kendall τ: −1 always falling, +1 always rising' });
-  for (const [g, k] of [[gRate, 'g-rate'], [gP, 'g-p'], [gTau, 'g-tau']] as const) {
+  for (const [g, k, nm] of [[gRate, 'g-rate', 'trend rate gauge'], [gP, 'g-p', 'significance gauge'], [gTau, 'g-tau', 'Kendall tau gauge']] as const) {
     const cell = h('div', 'cn-gcell');
     cell.dataset.helpRegion = k;
-    cell.append(g.el, infoButton(k, g === gRate ? 'trend rate gauge' : g === gP ? 'significance gauge' : 'Kendall tau gauge'));
+    cell.append(g.el, infoButton(k, nm));
     cluster.append(cell);
   }
-  const headline = q('.trend-headline', card)!;
   headline.dataset.helpRegion = 'readout';
   headline.append(infoButton('readout', 'rate readout'));
-  headline.before(cluster);
+  headline.before(m1.el);
+  m1.body.append(cluster, headline);
 
-  // Caution & warning
-  const cw = h('div', 'cn-cw');
-  cw.dataset.helpRegion = 'annunciator';
+  // C&W · Caution and warning
+  const m2 = module('C&W', 'Caution and warning', 'annunciator', 'pnl-cw');
   const grid = h('div', 'cn-cw-grid');
   const defs: [string, string, string][] = [['l-sig', 'VERDICT', 'p below your α'], ['l-agree', 'TESTS AGREE', 'Plain and autocorrelation-corrected tests agree'], ['l-cp', 'SHIFT', 'Pettitt change point found'], ['l-ac', 'MEMORY', 'Lag-1 autocorrelation above 0.3'], ['l-ci', 'CI SPANS 0', "Sen's 95% interval includes zero"], ['l-short', 'SHORT REC', 'Fewer than 20 years'], ['l-config', 'CONFIG Δ', 'Panels differ from the result on screen'], ['l-link', 'DATA LINK', 'NASA POWER request state']];
   for (const [k, legend, tip] of defs) {
@@ -396,26 +428,41 @@ function buildRight() {
     paintMaster();
     if (ui.acked) log.push('C&W', 'MASTER CAUTION ACKNOWLEDGED');
   });
-  const cwHead = h('div', 'cn-cw-head');
-  cwHead.append(h('span', 'cn-lab', 'C&W · CAUTION AND WARNING'), infoButton('annunciator', 'caution and warning panel'));
-  cw.append(cwHead, h('div', 'cn-cw-body'));
-  cw.lastElementChild!.append(grid, master);
-  headline.after(cw);
+  const cwBody = h('div', 'cn-cw cn-cw-body');
+  cwBody.append(grid, master);
+  m2.body.append(cwBody);
+  m1.el.after(m2.el);
 
-  // Teleprinter, plot CRT, deep read, data log
+  // TLM 02 · Teleprinter
+  const m3 = module('TLM 02', 'Teleprinter', 'teleprinter', 'pnl-tp');
   const tp = h('div', 'cn-teleprinter');
-  tp.dataset.helpRegion = 'teleprinter';
-  const sum = $('trend-summary'), note = $('trend-var-note');
-  cw.after(tp);
-  tp.append(h('span', 'cn-tp-head', 'TELEPRINTER · TLM 02'), sum, note, Object.assign(infoButton('teleprinter', 'teleprinter'), { className: 'info-btn info-abs' }));
+  tp.append(h('span', 'cn-tp-head', 'NASA POWER · TREND SUMMARY · AUTO-PRINT'), $('trend-summary'), $('trend-var-note'));
+  m3.body.append(tp);
+  m2.el.after(m3.el);
+
+  // TLM 03 · Record plot
+  const m4 = module('TLM 03', 'Record plot', 'plot', 'pnl-plot');
   const plot = q('.trend-chart-wrap', card)!;
-  plot.dataset.helpRegion = 'plot';
   plot.classList.add('crt');
-  plot.append(h('span', 'crt-glass'), Object.assign(infoButton('plot', 'record plot'), { className: 'info-btn info-abs' }));
+  plot.append(h('span', 'crt-glass'));
+  m4.body.append(plot, $('trend-chart-legend'));
+  m3.el.after(m4.el);
+
+  // TLM 04 · Deep read
   const dr = $('deep-read');
-  if (dr) { dr.dataset.helpRegion = 'deepread'; dr.classList.add('crt'); q('.deep-head', dr)?.append(infoButton('deepread', 'deep read')); }
+  const m5 = module('TLM 04', 'Deep read', 'deepread', 'pnl-deep');
+  if (dr) { dr.classList.add('crt'); m5.body.append(dr); }
+  m4.el.after(m5.el);
+
+  // TLM 05 · Data log
+  const m6 = module('TLM 05', 'Data log', 'telemetry', 'pnl-data');
   const stats = $('trend-stats');
   stats.classList.add('cn-datalog');
+  m6.body.append(stats);
+  for (const sel of ['#trend-explain-text', '#trend-source', '.trend-source-links']) { const el = q(sel, card); if (el) m6.body.append(el); }
+  m5.el.after(m6.el);
+  const actions = q('.trend-actions', card);
+  if (actions) m6.el.after(actions);
 }
 const pMap = (p: number) => -Math.log10(Math.min(1, Math.max(1e-4, p))) / 4;
 
@@ -475,6 +522,34 @@ function paintMaster() {
   master.classList.toggle('flash', Boolean(key) && key !== ui.acked && !reduced());
   master.setAttribute('aria-pressed', String(Boolean(key) && key === ui.acked));
   master.setAttribute('aria-label', key ? `Master caution on${key === ui.acked ? ', acknowledged' : ''}. Press to acknowledge.` : 'Master caution off');
+}
+
+// ---------------------------------------------------------------------------
+// Offline placard (preview build only) and plates for the 3D stations
+// ---------------------------------------------------------------------------
+const OFFLINE_NOTE: Record<string, string> = {
+  places: 'Photoreal 3D cities stream from Google 3D Tiles through Cesium, which this offline preview cannot reach.',
+  globe: 'The Cesium globe streams NASA GIBS imagery live, which this offline preview cannot reach.',
+  library: 'The spacecraft and machine models are large 3D files that are not bundled into this preview.',
+  scan: 'Scanning uses your camera and a vision model on the server, which this preview cannot reach.',
+  build: 'Building a model uses research and modelling agents on the server, which this preview cannot reach.',
+};
+function buildPlacard() {
+  const labels: Record<string, string> = { intro: 'STN 04 · Library · machine dossier', 'scan-panel': 'STN 05 · Scan · capture control', 'build-panel': 'STN 06 · Build · fabrication control', 'place-panel': 'STN 02 · Places · reconnaissance', 'globe-panel': 'STN 03 · Globe · observation', card: 'Part dossier' };
+  for (const [id, l] of Object.entries(labels)) document.getElementById(id)?.setAttribute('data-plate', l);
+  if (!root.dataset.offline) return;
+  const pl = h('div', 'cn-placard');
+  pl.id = 'cn-placard';
+  pl.innerHTML = '<span class="hp-code">LIVE BUILD ONLY</span><strong></strong><p></p><button type="button" class="cn-key">Return to STN 01 · Trends</button>';
+  pl.querySelector('button')!.addEventListener('click', () => q<HTMLButtonElement>('.mode[data-mode="trends"]')?.click());
+  document.body.append(pl);
+}
+function paintPlacard(mode: string) {
+  const pl = document.getElementById('cn-placard');
+  if (!pl) return;
+  const st = STATIONS[mode];
+  q('strong', pl)!.textContent = st ? `STN ${st.n} · ${st.name}` : mode;
+  q('p', pl)!.textContent = `${OFFLINE_NOTE[mode] ?? ''} On the live site this station is fully working. Everything on STN 01 runs here.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -694,12 +769,15 @@ function runBriefing() {
     { sel: '.pnl-target', title: 'PNL 03 · Target acquisition', text: 'Search a place, press a preset or click the globe. LAT/LON show exactly which grid cell you are testing.' },
     { sel: '.pnl-sensor', title: 'PNL 04 · Sensor select', text: 'GROUP picks the family, the keys or the FINE dial pick the NASA POWER variable.' },
     { sel: '.pnl-window', title: 'PNL 05 · Record window', text: 'Drag, scroll or use arrow keys on START and END. Aim for 20 years or more.' },
-    { sel: '.cn-pair', title: 'PNL 06–07 · Test level and display', text: 'α sets how strict the verdict lamp is. The toggles change the plot, the globe and the screen effects.' },
+    { sel: '.pnl-alpha', title: 'PNL 06 · Test level', text: 'α sets how strict the verdict lamp is. It never changes the data.' },
+    { sel: '.pnl-display', title: 'PNL 07 · Display control', text: 'Switches for the plot, basemap, globe and screen effects; SCREEN picks CRT or daylight; INTENSITY dims every display.' },
     { sel: '.pnl-exec', title: 'PNL 08 · Execute', text: 'ARMED means the panels changed. Press EXECUTE to request the record from NASA POWER.' },
     { sel: '.cn-cluster', title: 'Instrument cluster', text: 'Rate with its 95% band, significance on a log scale, and consistency (Kendall τ).' },
     { sel: '.cn-cw', title: 'Caution and warning', text: 'Lamps light from the real statistics. Any amber lamp lights MASTER CAUTION: check it before you quote the result.' },
     { sel: '.trend-chart-wrap', title: 'Record plot', text: 'Every year of the record, Sen\'s trend line, its band and any shift year.' },
     { sel: '#cn-deck', title: 'Event log, scope, diagnostics', text: 'Everything the console does is logged in GMT. The scope replays the monthly signal.' },
+    { sel: '.cn-panels', title: 'Panels', text: 'Every panel folds (the bar button) or stows (×). PANELS lists them all and brings them back; the edge tabs slide whole columns away.' },
+    { sel: '.cn-gev', title: "God's Eye View", text: 'Clears the console and gives you the whole globe with an orbital HUD, layers, targets and a command line. Press G any time.' },
     { sel: '.cn-help', title: 'Help is always here', text: 'Every panel has an i button. HELP (or the ? key) opens the full Flight Manual.' },
   ];
   // Make sure the telemetry side exists to point at.
