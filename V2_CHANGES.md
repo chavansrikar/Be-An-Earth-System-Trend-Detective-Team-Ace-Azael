@@ -32,7 +32,7 @@ The Trends station now runs as an Apollo-era operations console. It mixes Missio
 - **Hover tooltips.**
 - **ATLAS Flight Manual.** It opens with HELP or the `?` key and has 10 chapters: overview, navigation, stations, pre-flight checklist, control panels, instruments, caution & warning, glossary, troubleshooting, data & honesty. It is searchable.
 
-**BRIEFING** is a 15-step guided tour.
+**BRIEFING** is an 18-step guided tour.
 
 None of the Apollo styling is presented as spacecraft data. MET is session time, and the lamps, log and diagnostics report this browser's real requests. The manual's "Data & honesty" chapter says this explicitly.
 
