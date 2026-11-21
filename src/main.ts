@@ -157,14 +157,17 @@ const labels = (() => {
         if (!el) return;
         const focused = m.focused === i;
         const visible = showAll || focused;
-        if (!visible) { el.style.opacity = '0'; return; }
+        // Write only what changed, and move with transform: per-frame left/top meant a layout
+        // per label per frame.
+        const set = (k: 'opacity' | 'transform', val: string) => { if (el.style[k] !== val) el.style[k] = val; };
+        if (!visible) { set('opacity', '0'); return; }
         const s = stage.project(m.anchor(i, v));
-        if (!s) { el.style.opacity = '0'; return; }
-        el.style.opacity = m.focused >= 0 && !focused ? '0.25' : String(Math.min(1, (explode - 0.35) * 4 + (focused ? 1 : 0)));
-        el.style.left = `${s.x}px`;
-        el.style.top = `${s.y}px`;
-        el.classList.toggle('hot', focused);
-        el.classList.toggle('named', named && explode > 0.7);
+        if (!s) { set('opacity', '0'); return; }
+        set('opacity', m.focused >= 0 && !focused ? '0.25' : String(+Math.min(1, (explode - 0.35) * 4 + (focused ? 1 : 0)).toFixed(2)));
+        set('transform', `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0) translate(-50%, -50%)`);
+        if (el.classList.contains('hot') !== focused) el.classList.toggle('hot', focused);
+        const nm = named && explode > 0.7;
+        if (el.classList.contains('named') !== nm) el.classList.toggle('named', nm);
       });
     },
   };
@@ -1752,10 +1755,10 @@ stage.onFrame = (dt, t) => {
   if (!base || !top) { placeTag.hidden = true; return; }
   placeTag.hidden = false;
   if (placeTag.textContent !== currentLandmark.name) placeTag.textContent = currentLandmark.name;
-  const stem = THREE.MathUtils.clamp(base.y - top.y, 24, 220);
-  placeTag.style.setProperty('--stem', `${stem}px`);
-  placeTag.style.left = `${base.x}px`;
-  placeTag.style.top = `${base.y}px`;
+  const stem = Math.round(THREE.MathUtils.clamp(base.y - top.y, 24, 220));
+  // Transform only, and the stem only when it changes: left/top every frame cost a layout.
+  if (placeTag.style.getPropertyValue('--stem') !== `${stem}px`) placeTag.style.setProperty('--stem', `${stem}px`);
+  placeTag.style.transform = `translate3d(${base.x.toFixed(1)}px, ${base.y.toFixed(1)}px, 0) translate(-50%, -100%)`;
 };
 
 // ---------- build: agents construct a model you can take apart ----------
@@ -1987,7 +1990,7 @@ function leaveGlobe() {
   globePlace = null;
   globeRow(null);
   document.body.classList.remove('globe');
-  stage.camera.clearViewOffset();
+  stage.setShift(0, 0);
   stage.controls.autoRotate = !reducedMotion;
 }
 
@@ -2146,12 +2149,12 @@ window.addEventListener('keydown', (e) => {
       originLL = { lat: globe.lat, lon: globe.lon };
       stage.holdWholeEarth(globe.dist);
       // On wide screens, centre the planet in the space right of the panel, not behind it.
-      const w = canvas.clientWidth, h = canvas.clientHeight;
+      const { w, h } = stage.viewSize;
       // Phones in Places: the panel sits on top, so lower the planet into the space under it instead.
       const panelMode = mode === 'places' || mode === 'trends';
       const shiftX = panelMode && w > 900 ? Math.min(230, w * 0.15) : 0;
       const shiftY = panelMode && w <= 760 ? h * 0.17 : 0;
-      if (shiftX || shiftY) stage.camera.setViewOffset(w, h, -shiftX, -shiftY, w, h); else stage.camera.clearViewOffset();
+      stage.setShift(shiftX, shiftY);
     }
   };
 }

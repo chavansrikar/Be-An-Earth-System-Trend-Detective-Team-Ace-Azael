@@ -385,13 +385,20 @@ export class Scope {
     this.canvas.setAttribute('aria-label', label);
     this.el.append(this.canvas, h('span', 'crt-glass'));
     document.addEventListener('visibilitychange', () => (document.hidden ? this.stop() : this.start()));
+    // Only sweep while the scope is on screen: on the 3D stations it is hidden, and drawing it
+    // every frame there stole time from the 3D view.
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(([e]) => { this.visible = e.isIntersecting; if (this.visible) this.start(); else this.stop(); }).observe(this.el);
+    }
   }
+  private visible = true;
   setData(values: number[]) {
     this.data = values.filter(Number.isFinite);
     this.t = 0;
     this.start();
   }
   start() {
+    if (!this.visible || document.hidden) return;
     if (this.running || !this.data.length) { this.draw(1); return; }
     if (reduced()) { this.draw(1); return; }
     this.running = true;

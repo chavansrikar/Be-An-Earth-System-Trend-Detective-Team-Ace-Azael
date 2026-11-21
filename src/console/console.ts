@@ -7,6 +7,7 @@ import { trendSnapshot } from '../trends-ui';
 import { Knob, Toggle, Lamp, SegDisplay, Gauge, Scope, CrtLog, module, infoButton, reduced } from './instruments';
 import { initHelp, openManual, startTour, briefed, STATIONS, type TourStep } from './help';
 import { initBay } from './bay';
+import { initTuck } from './tuck';
 import { initGev, toggle as toggleGev } from './gev';
 import './apollo.css';
 
@@ -58,6 +59,7 @@ export function initConsole() {
   buildRight();
   buildCentre();
   initBay(q('.cn-rail')!, (c, t) => log.push(c, t));
+  initTuck(q('.cn-rail')!, (c, t) => log.push(c, t));
   initGev((c, t, l) => log.push(c, t, l));
   buildPlacard();
   bindState();
@@ -127,6 +129,7 @@ function buildHeader() {
   document.body.append(plate);
 }
 
+let stnTimer = 0;
 function paintStation(mode: string) {
   const st = STATIONS[mode] ?? STATIONS.trends;
   const plate = $('cn-plate');
@@ -134,6 +137,12 @@ function paintStation(mode: string) {
   q('.cn-stn i', plate)!.textContent = st.role;
   q('.cn-stn-text strong', plate)!.textContent = `STN ${st.n} · ${st.name.toUpperCase()}`;
   q('.cn-stn-text small', plate)!.textContent = st.purpose;
+  if (root.dataset.station !== mode) {
+    // The new station's panels rise in once (see .stn-in); the class goes before it can replay.
+    root.classList.add('stn-in');
+    clearTimeout(stnTimer);
+    stnTimer = window.setTimeout(() => root.classList.remove('stn-in'), 450);
+  }
   root.dataset.station = mode;
   // One dossier panel serves Library, Scan and Build: name the station it is on.
   const dossier: Record<string, string> = { library: 'STN 04 · Library · machine dossier', scan: 'STN 05 · Scan · object dossier', build: 'STN 06 · Build · model dossier' };

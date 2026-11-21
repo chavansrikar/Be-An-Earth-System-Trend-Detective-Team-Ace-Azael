@@ -948,3 +948,53 @@ html[data-console][data-station="trends"] .cn-deck { grid-template-columns: minm
 @media (min-width: 901px) and (max-width: 1420px) {
   html[data-console]:not([data-station="trends"]) .cn-plate { left: 420px; right: auto; transform: none; width: min(560px, calc(100vw - 436px)); }
 }
+
+/* ---------- TUCK: every panel to its nearest edge (key T) ----------
+   Moves use the `translate` property, so they compose with each panel's own transform, and
+   only translate and opacity animate (compositor work, no repaint). Once off screen a tucked
+   panel turns visibility:hidden: no compositing, no tab stops. */
+.cn-tuck { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(#3B3E3C, #2B2D2C); color: #E8E3D6; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 3px 0 #0D0E0D, 0 4px 6px rgba(0,0,0,.4); }
+.cn-tuck kbd { all: unset; font: 600 9px/1 var(--mono); color: #9A968A; padding: 2px 4px; border: 1px solid #56594F; border-radius: 2px; }
+.cn-tuck[aria-pressed="true"] { background: linear-gradient(#FFD27A, #FFB020); color: #2A1600; box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 3px 0 #8A5A08, 0 4px 6px rgba(0,0,0,.4); }
+.cn-tuck[aria-pressed="true"] kbd { color: #5A3A00; border-color: #A06A10; }
+
+html[data-console] :is(.place-panel, .globe-panel, .scan-panel, .build-panel, .intro, .console, .shelf, .card) {
+  transition: translate .45s var(--a-ease), opacity .3s var(--a-ease), visibility 0s linear 0s;
+}
+html[data-look="apollo"] :is(.trend-panel, .trend-result, .cn-deck, .cn-plate) {
+  transition: transform .55s var(--a-ease), translate .45s var(--a-ease), opacity .4s var(--a-ease), visibility 0s linear 0s;
+}
+html.tucked :is(.place-panel, .globe-panel, .scan-panel, .build-panel, .intro, .console, .shelf, .card, .cn-plate, .trend-panel, .trend-result, .cn-deck) {
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: translate .45s var(--a-ease), opacity .3s var(--a-ease) .08s, visibility 0s linear .45s, transform .55s var(--a-ease);
+}
+html.tucked :is(.place-panel, .globe-panel, .scan-panel, .build-panel, .intro, .console, .trend-panel) { translate: calc(-100% - 48px) 0; }
+html.tucked :is(.card, .trend-result), html.tucked body.mode-build .intro { translate: calc(100% + 48px) 0; }
+html.tucked :is(.shelf, .cn-deck) { translate: 0 calc(100% + 40px); }
+html.tucked .cn-plate { translate: 0 calc(-100% - 90px); }
+html.tucked :is(.cn-colhide, .cn-coltab) { opacity: 0; pointer-events: none; }
+
+.cn-tucktab {
+  position: fixed; z-index: 9; left: 0; top: calc(var(--rail) + 60px); cursor: pointer; padding: 0;
+  border: 1px solid #0A0B0A; border-left: 0; border-radius: 0 4px 4px 0; color: #1B1D1C;
+  background: linear-gradient(90deg, #F1ECDD, #D6CFBD); box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  font: 800 10px/1 var(--a-cond); font-stretch: 80%; letter-spacing: .22em;
+  animation: tucktab-in .35s var(--a-ease) .3s both;
+}
+.cn-tucktab span { display: block; padding: 12px 7px; writing-mode: vertical-rl; transform: rotate(180deg); }
+.cn-tucktab:hover { background: linear-gradient(90deg, #FFE2A8, #F2C062); }
+.cn-tucktab:focus-visible { outline: 2px solid #FFB020; outline-offset: 2px; }
+@keyframes tucktab-in { from { translate: -100% 0; } }
+
+/* A station's panels rise in once when you arrive (html.stn-in lasts one animation). */
+@keyframes panel-in { from { opacity: 0; translate: 0 10px; } }
+html.stn-in:not(.tucked) :is(.place-panel, .globe-panel, .scan-panel, .build-panel, .intro, .nav-pad, .shelf):not([hidden]) { animation: panel-in .34s var(--a-ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-console] :is(.place-panel, .globe-panel, .scan-panel, .build-panel, .intro, .console, .shelf, .card, .cn-plate, .trend-panel, .trend-result, .cn-deck, .nav-pad, .cn-tucktab) { transition-duration: 0s !important; transition-delay: 0s !important; animation: none !important; }
+}
+/* The rail has to fit: the mission clock is a Trends instrument, so the 3D stations (which add
+   the hands and model chips) drop it below wide screens, and narrow laptops fold the link lamps. */
+@media (max-width: 1599px) { html[data-console]:not([data-station="trends"]) .cn-clock { display: none; } }
+@media (min-width: 901px) and (max-width: 1100px) { html[data-console] .cn-links { display: none; } }
+@media (min-width: 901px) and (max-width: 1280px) { html[data-console] .cn-key { padding-left: 8px; padding-right: 8px; letter-spacing: .12em; } }

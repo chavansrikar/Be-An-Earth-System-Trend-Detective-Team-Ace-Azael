@@ -107,6 +107,42 @@ Tested station by station in Playwright at 1470×860 and 1190×650 against the l
   - The search box lets go of the keyboard after a fly, so W A S D work on landing.
 - **Station text:** the Globe station description no longer says GIBS only. It is photoreal 3D or NASA imagery.
 
+## 0c. Frame rate and smoothness (21 Nov)
+Measured v1 (`main`) and v2 side by side on the same headless renderer, per station.
+
+| Station | v1 fps | v2 before | v2 now |
+|---|---|---|---|
+| Places | 8.8 | 2.9 | 11.1 |
+| Globe | 8.3 | 2.6 | 10.5 |
+| Library | 4.4 | 2.1 | 3.1 (bloom kept on for the test; adaptive drops it) |
+
+All figures are fps at a fixed 1× resolution with software WebGL. Real GPUs are far faster; the ratios are what matter.
+
+- **Cause:** the console theme turned on bloom. v1's riso theme had none. Every frame, the photoreal Earth went through a full-screen bloom chain.
+- **Bloom:** now holograms only, at half resolution. It is the first thing to drop if frames run slow.
+- **No post-processing when no effect is on.** The real Earth with the plain lens renders straight to the screen. That is cheaper, and the canvas's own antialiasing comes back.
+- **Adaptive resolution.** It starts at up to 1.5× (retina is 2×) and steps by 0.25:
+  - down when frames run under about 42 fps;
+  - up after 5 s above about 54 fps.
+  - A step that proves too slow becomes the ceiling, so it never see-saws.
+  - Tile detail follows the resolution.
+  - `?dpr=1.5` pins it.
+- **Real-time motion.** Flights and moves keep real time down to 10 fps; they used to slow down below 20. A Colosseum landing in the test went from 102 s to 16 s.
+- **No preserved drawing buffer.** That saved a full-screen copy every frame, and nothing read the canvas back.
+- **No per-frame layout.**
+  - Part labels and the place pin move with transforms and write only what changed. They used to force a layout per label per frame.
+  - The stage size is cached.
+  - Measured layouts per second on the 3D stations went to 0.
+- **Trends scope:** its sweep animation stops while off screen. It used to draw every frame on every station.
+- **TUCK (key T, or TUCK in the top rail):**
+  - Every panel slides to its nearest edge and the view re-centres, eased.
+  - The bar, NAV pad and map credit stay.
+  - Only translate and opacity animate. Tucked panels leave rendering and the tab order.
+  - The PANELS tab on the left edge, TUCK, or T brings them back.
+  - It works on every station, Trends included.
+- **Station switches:** panels rise in once (0.34 s) when you arrive at a station. Reduced motion turns all of this off.
+- **Top rail fits from 1024 px up.** It used to clip BRIEFING (and at 1024 HELP too). The mission clock leaves the 3D stations below 1600 px, and narrow laptops fold the link lamps.
+
 ## 1. New design: "Field Instrument"
 A neo-brutalist frame with skeuomorphic details, still in the ATLAS Riso palette (blue `#2B44B8`, cream `#F4EFE4`, pink `#FF4FA3`):
 - Hard ink borders and offset shadows on every control. Keys press down when clicked.
@@ -174,6 +210,8 @@ Every view has hover tooltips, arrow-key tab navigation and a plain-language cap
 | `offline/` (shim + stub), `vite.offline.config.ts` (new) | Offline preview build only (recorded NASA POWER data); not used by the live site |
 | `src/trends-ui.ts` | Broadcasts `atlas:state` events and exports `trendSnapshot()`; the chart reads its ink colour from the canvas |
 | `src/nav.ts` (new) | Keyboard and NAV pad camera navigation |
+| `src/console/tuck.ts` (new) | TUCK: panels to the edges (key T) |
+| `src/stage.ts` (perf) | Adaptive resolution, bloom only on holograms at half resolution, direct render without effects, real-time dt, eased view shift, cached size |
 | `src/stage.ts` | Up-axis blending in dive and rise, control hand-back, eased ground correction, `nav` input, map-style pan and zoom-to-cursor on the Earth |
 | `src/main.ts`, `index.html` | Empty stage for Scan and Build, nav wiring, globe-orbit keys, country-over-landmark search, mouse hints |
 | `V2_CHANGES.md` (new) | This file |

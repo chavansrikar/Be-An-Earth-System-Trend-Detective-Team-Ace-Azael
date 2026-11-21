@@ -18,6 +18,20 @@ export class Stage {
   readonly pivot = new THREE.Group();
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
+  /** The theme asks for phosphor glow (bloom) on holograms. */
+  private glow = false;
+  /**
+   * Adaptive quality. Render resolution starts at up to 1.5× (retina is 2×) and moves in
+   * 0.25 steps: down when frames run slow, up when they hold 60 fps with room to spare. A
+   * step up that turns out too slow becomes the ceiling, so it never see-saws. Bloom only ever
+   * runs on holograms, at half resolution, and is the first thing to go when frames run slow.
+   */
+  private quality = (() => {
+    const max = Math.min(window.devicePixelRatio || 1, 2);
+    const q = new URLSearchParams(location.search).get('dpr');
+    const dpr = q ? THREE.MathUtils.clamp(Number(q) || 1, 0.5, max) : Math.min(max, 1.5);
+    return { dpr, max, min: Math.min(1, max), ft: 16.7, slow: 0, good: 0, cooldown: 0, ceiling: max, bloomOk: true, bloomFailed: false, fixed: !!q, acc: 0 };
+  })();
   private clock = new THREE.Clock();
   private pad: THREE.Group;
   private motes: THREE.Points;
@@ -72,6 +86,11 @@ export class Stage {
    * viewer has the camera.
    */
   readonly nav = { fwd: 0, side: 0, turn: 0, zoom: 0, fast: false };
+  /** Stage size in CSS pixels, kept by resize() so per-frame code never reads layout. */
+  private viewW = 1;
+  private viewH = 1;
+  /** Picture shift in CSS px (x right, y down): current and goal. See setShift(). */
+  private shift = { x: 0, y: 0, gx: 0, gy: 0 };
   /** Metres of ground correction still to ease into camera and target (see shiftGround). */
   private groundLift = 0;
   /** A scripted camera move in Earth mode. `step` receives eased-free progress 0..1. */
@@ -84,8 +103,10 @@ export class Stage {
 
   constructor(host: HTMLElement) {
     this.host = host;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // No preserveDrawingBuffer: nothing reads this canvas back (snapshot() renders to its own
+    // target), and keeping the buffer costs a full-screen copy every frame.
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(this.quality.dpr);
     host.appendChild(this.renderer.domElement);
 
     this.scene.background = new THREE.Color(theme.ground);
@@ -112,7 +133,8 @@ export class Stage {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.32, 0.62);
-    if (theme.glow && !new URLSearchParams(location.search).has('nobloom')) this.composer.addPass(this.bloom);
+    this.glow = theme.glow && !new URLSearchParams(location.search).has('nobloom');
+    if (this.glow) this.composer.addPass(this.bloom);
     this.composer.addPass(this.lens.pass);
     this.composer.addPass(new OutputPass());
 
@@ -187,6 +209,10 @@ export class Stage {
       this.groundLift = 0;
       this.controls.enabled = true;
     }
+    // Hologram framing comes back at once; the Earth starts centred and its caller shifts it.
+    this.shift.gx = !on && this.viewW > 900 ? this.viewW * 0.09 : 0; this.shift.gy = 0;
+    this.shift.x = this.shift.gx; this.shift.y = 0;
+    this.applyShift();
   }
 
   get flying() { return this.flight !== null; }
@@ -443,19 +469,100 @@ export class Stage {
     if (p.y < this.floor) p.y = this.floor;
   }
 
+  /**
+   * Post-processing only when an effect is on. Photoreal Earth with the plain lens goes
+   * straight to the screen: no extra full-screen passes, and the canvas's own antialiasing.
+   */
+  private draw() {
+    this.bloom.enabled = this.glow && !this.earthOn && this.quality.bloomOk;
+    if (this.bloom.enabled || this.lens.pass.enabled) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Read the frame interval and step resolution (then bloom) down or up. Runs once a second. */
+  private adapt(raw: number) {
+    const q = this.quality;
+    if (raw > 1 || document.hidden) return; // a stall or a background tab says nothing about load
+    q.ft += (Math.min(raw * 1000, 250) - q.ft) * 0.1;
+    q.acc += raw;
+    if (q.acc < 1) return;
+    q.acc = 0;
+    if (q.fixed) return;
+    if (q.cooldown > 0) q.cooldown--;
+    if (q.ft > 24) { q.slow++; q.good = 0; } else if (q.ft < 18.5) { q.good++; q.slow = 0; } else { q.slow = 0; q.good = 0; }
+    if (q.slow >= 2) {
+      q.slow = 0;
+      if (this.bloom.enabled) {
+        // Glow goes first: sharp lines without glow read better than soft lines with it.
+        q.bloomOk = false;
+        if (q.cooldown > 0) q.bloomFailed = true;
+      } else if (q.dpr > q.min) {
+        // The level just tried was too much: it becomes the ceiling for this session.
+        if (q.cooldown > 0) q.ceiling = Math.max(q.min, q.dpr - 0.25);
+        this.setDpr(q.dpr - 0.25);
+      }
+      q.cooldown = 6;
+    } else if (q.good >= 5 && q.cooldown === 0) {
+      q.good = 0;
+      if (q.dpr < Math.min(q.max, q.ceiling)) { this.setDpr(q.dpr + 0.25); q.cooldown = 6; }
+      else if (!q.bloomOk && !q.bloomFailed && this.glow && !this.earthOn) { q.bloomOk = true; q.cooldown = 6; }
+    }
+  }
+
+  private setDpr(v: number) {
+    const q = this.quality;
+    q.dpr = THREE.MathUtils.clamp(Math.round(v * 4) / 4, q.min, q.max);
+    this.renderer.setPixelRatio(q.dpr);
+    this.composer.setPixelRatio(q.dpr);
+    this.resize();
+  }
+
+  /** Stage size in CSS pixels (cached; safe to read every frame). */
+  get viewSize() { return { w: this.viewW, h: this.viewH }; }
+
+  /** Current render scale and frame time, for the console readout and tests. */
+  get perf() { const q = this.quality; return { dpr: q.dpr, ms: +q.ft.toFixed(1), bloom: this.bloom.enabled }; }
+
   private resize() {
     const w = this.host.clientWidth, h = this.host.clientHeight;
     if (!w || !h) return;
+    this.viewW = w; this.viewH = h;
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
-    this.bloom.setSize(w, h);
+    // Bloom is soft by nature: half resolution looks the same and costs a quarter.
+    this.bloom.setSize(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
     this.lens.resize(w, h);
     this.camera.aspect = w / h;
     // Keep the model framed on narrow screens.
     this.camera.fov = w / h < 0.8 ? 46 : 32;
-    // On wide screens the left column holds text, so centre the hologram in the space to its right.
-    if (w > 900) this.camera.setViewOffset(w, h, -w * 0.09, 0, w, h);
-    else this.camera.clearViewOffset();
+    // On wide screens the left column holds text, so centre the hologram in the space to its
+    // right. (On the Earth the caller owns the shift; a resize must not move the view.)
+    if (!this.earthOn) { this.shift.gx = w > 900 ? w * 0.09 : 0; this.shift.gy = 0; }
+    this.applyShift();
+  }
+
+  /**
+   * Move the picture right/down by (x, y) CSS pixels to clear a side panel. Eased in tick(),
+   * and dropped to the centre while the panels are tucked away.
+   */
+  setShift(x: number, y = 0) { this.shift.gx = x; this.shift.gy = y; }
+
+  private easeShift(dt: number) {
+    const sh = this.shift;
+    const tucked = document.documentElement.classList.contains('tucked');
+    const gx = tucked ? 0 : sh.gx, gy = tucked ? 0 : sh.gy;
+    if (Math.abs(gx - sh.x) < 0.3 && Math.abs(gy - sh.y) < 0.3) return;
+    const k = this.reducedMotion ? 1 : 1 - Math.exp(-dt * 7);
+    sh.x += (gx - sh.x) * k; sh.y += (gy - sh.y) * k;
+    if (Math.abs(gx - sh.x) < 0.3) sh.x = gx;
+    if (Math.abs(gy - sh.y) < 0.3) sh.y = gy;
+    this.applyShift();
+  }
+
+  private applyShift() {
+    const { x, y } = this.shift, w = this.viewW, h = this.viewH;
+    if (Math.abs(x) < 0.3 && Math.abs(y) < 0.3) this.camera.clearViewOffset();
+    else this.camera.setViewOffset(w, h, -x, -y, w, h);
     this.camera.updateProjectionMatrix();
   }
 
@@ -501,7 +608,8 @@ export class Stage {
   project(p: THREE.Vector3): { x: number; y: number } | null {
     const v = p.clone().project(this.camera);
     if (v.z > 1) return null;
-    return { x: (v.x * 0.5 + 0.5) * this.host.clientWidth, y: (-v.y * 0.5 + 0.5) * this.host.clientHeight };
+    // Cached size: reading clientWidth here after a label moved forced a fresh layout per label.
+    return { x: (v.x * 0.5 + 0.5) * this.viewW, y: (-v.y * 0.5 + 0.5) * this.viewH };
   }
 
   /** A ray from normalised device coordinates. */
@@ -512,7 +620,10 @@ export class Stage {
   }
 
   private tick() {
-    const dt = Math.min(this.clock.getDelta(), 0.05);
+    const raw = this.clock.getDelta();
+    // Motion keeps real time down to 10 fps; below that it slows rather than jumps.
+    const dt = Math.min(raw, 0.1);
+    this.adapt(raw);
     const t = this.clock.elapsedTime;
     const motion = this.reducedMotion ? 0 : 1;
     this.spin += (0 - this.spin) * Math.min(1, dt * 2.2);
@@ -566,6 +677,7 @@ export class Stage {
     }
     this.lens.tick(t);
     this.onFrame?.(dt, t);
-    this.composer.render();
+    this.easeShift(dt);
+    this.draw();
   }
 }
