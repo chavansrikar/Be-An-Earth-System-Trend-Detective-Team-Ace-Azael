@@ -143,6 +143,35 @@ All figures are fps at a fixed 1× resolution with software WebGL. Real GPUs are
 - **Station switches:** panels rise in once (0.34 s) when you arrive at a station. Reduced motion turns all of this off.
 - **Top rail fits from 1024 px up.** It used to clip BRIEFING (and at 1024 HELP too). The mission clock leaves the 3D stations below 1600 px, and narrow laptops fold the link lamps.
 
+## 0d. Library catalog: 30 models in 13 categories (22 Nov)
+The Library went from 5 models in one row to a catalog.
+
+- **Categories:**
+  - Mars & planets, Human spaceflight, Observatories & probes, Robots, Aircraft, Cars.
+  - Engines & mechanisms, Phones, Cameras & film, Computers & consoles, Audio & radio, Scientific instruments, Workshop machines.
+  - Categories with no model yet stay hidden, so nothing shows empty.
+- **Shelf:** CATALOG (with the count), a ‹ category › stepper, and that category's models.
+- **Catalog sheet (CATALOG button):**
+  - Every model as a thumbnail tile, grouped by category, with a jump bar.
+  - Esc or a backdrop click closes it.
+  - The thumbnails are real hologram renders (`public/models/thumbs/*.webp`, about 8 KB each).
+- **25 new models.** All are free to ship (public domain, CC0 or CC BY) and credited in `public/models/NOTICE.md` and in the on-screen credit line.
+  - NASA (public domain): Viking lander, Apollo Lunar Module, Space Shuttle, Crawler-transporter, Chandra, Voyager, Landsat 8, Robonaut 2, X-57 Maxwell.
+  - Poly Haven (CC0):
+    - payphone; rangefinder camera; turret film camera; 8 mm projector; classic laptop;
+    - boombox; cassette player; military radio; two microscopes; binoculars;
+    - analog multimeter; spacecraft globe panel; drill press; air compressor; portable generator.
+- **Every part is named, and checked.**
+  - Each model was split into parts (`tools/parts.mjs`), and each part was rendered on its own and named only when it could be identified.
+  - Left and right were checked against the geometry.
+  - Pieces that could not be told apart share one name, and parts with the same name come apart together.
+  - Models too coarse or too ambiguous to label honestly were left out: Opportunity, Hubble, ISS, GPM, Terra, the EMU suit, Global Hawk, a games console shell, a digital watch.
+- **Framing:** the camera pulls back and lifts as a model explodes, using each model's measured exploded size, so tall or wide models (Robonaut, the shuttle stack) stay in view.
+- **`tools/parts.mjs`:**
+  - Strips textures, bakes transforms, and splits a model into parts: by its own mesh nodes, or by connected shells.
+  - Then it simplifies and compresses each model, to about 0.1 to 0.4 MB.
+  - `--solo` gives frames and chassis a part of their own, so an engine does not stay fused to the frame round it.
+
 ## 1. New design: "Field Instrument"
 A neo-brutalist frame with skeuomorphic details, still in the ATLAS Riso palette (blue `#2B44B8`, cream `#F4EFE4`, pink `#FF4FA3`):
 - Hard ink borders and offset shadows on every control. Keys press down when clicked.
@@ -214,4 +243,9 @@ Every view has hover tooltips, arrow-key tab navigation and a plain-language cap
 | `src/stage.ts` (perf) | Adaptive resolution, bloom only on holograms at half resolution, direct render without effects, real-time dt, eased view shift, cached size |
 | `src/stage.ts` | Up-axis blending in dive and rise, control hand-back, eased ground correction, `nav` input, map-style pan and zoom-to-cursor on the Earth |
 | `src/main.ts`, `index.html` | Empty stage for Scan and Build, nav wiring, globe-orbit keys, country-over-landmark search, mouse hints |
+| `src/library.ts` | The catalog: 13 categories, 30 models, credits, licences and part names |
+| `src/catalog.ts` (new) | Library shelf (category stepper) and the catalog sheet |
+| `src/model.ts`, `src/stage.ts` (library) | Parts with the same name come apart together; measured exploded size drives the camera |
+| `tools/parts.mjs` (new) | Splits, names-by-index, simplifies and compresses models into hologram parts |
+| `public/models/*.glb`, `public/models/thumbs/` | 25 new models and 30 thumbnails; `NOTICE.md` lists every credit |
 | `V2_CHANGES.md` (new) | This file |

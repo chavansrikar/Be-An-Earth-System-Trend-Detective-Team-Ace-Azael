@@ -666,8 +666,17 @@ export class Stage {
       this.earth.update(dt);
     } else {
       this.model?.update(dt, t);
-      // Back the camera off as the model explodes so parts stay on screen.
-      const want = this.baseDistance * (1 + this.framing * 0.42);
+      // Back the camera off as the model explodes so parts stay on screen. A model that knows its
+      // exploded size gets exactly that much room, and the view follows its centre up as it opens.
+      const ext = this.model?.extent;
+      const k = this.framing;
+      let want = this.baseDistance * (1 + k * 0.42);
+      if (ext) {
+        want = this.baseDistance * Math.max(1, 1 + (ext.r1 / ext.r0 - 1) * k * 0.9);
+        const goalY = 0.95 + (ext.c1.y - ext.c0.y) * k * 0.8;
+        const dy = (goalY - this.controls.target.y) * Math.min(1, dt * 3);
+        if (!this.userZoomed && Math.abs(dy) > 1e-5) { this.controls.target.y += dy; this.camera.position.y += dy; }
+      }
       const off = this.camera.position.clone().sub(this.controls.target);
       const d = off.length();
       if (!this.userZoomed) off.setLength(d + (want - d) * Math.min(1, dt * 3));

@@ -23,6 +23,7 @@ import { SignalLayers, ago, type Signal, type LayerId } from './signals';
 import { initTrends, setTrendMode, trendContext, setPlaceGlobeMode, setPlaceGlobePick, showPlaceGlobe, resetPlaceGlobe, openTrendAt, openCompare, setGlobeTabMode, setGlobeTabPick, showGlobeTab, globeTabBase, globeTabSpin, globeTabNight, globeTabReset, showGlobeTabMarker, flyGlobeTab } from './trends-ui';
 import { fmt, decimalsFor, type TrendResult } from './trends';
 import { initNav } from './nav';
+import { initCatalog } from './catalog';
 
 applyCss(theme);
 
@@ -37,28 +38,21 @@ const state = {
 
 const explodeInput = $('explode') as HTMLInputElement;
 
-// ---------- library shelf ----------
+// ---------- library shelf and catalog ----------
 const shelf = $('shelf');
-for (const e of LIBRARY) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.dataset.id = e.id;
-  b.innerHTML = `<span class="t">${e.title}</span><span class="k">${e.kind}</span>`;
-  b.addEventListener('click', () => loadEntry(e));
-  shelf.appendChild(b);
-}
+const catalog = initCatalog({ shelf, onPick: (e) => void loadEntry(e) });
 
 async function loadEntry(e: LibraryEntry) {
   if (state.loading || state.entry?.id === e.id) return;
   state.loading = true;
-  shelf.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', (b as HTMLElement).dataset.id === e.id));
+  catalog.setActive(e.id);
   // A place link opens straight into Places: the library model loads quietly behind it.
   if (!/[?&](place|at)=/.test(location.search) || state.entry) ui.log(`loading ${e.title.toLowerCase()}`, 'sys');
   try {
-    const m = await HoloModel.load(e.url);
+    const m = await HoloModel.load(e.url, e.parts);
     // Opened straight into another mode (a ?place= link, say): don't let a late library model take over.
     // Library loads it again on entry.
-    if (mode !== 'library') { shelf.querySelectorAll('button').forEach((b) => b.classList.remove('is-on')); return; }
+    if (mode !== 'library') { catalog.clearActive(); return; }
     state.entry = e;
     stage.setModel(m);
     stage.frame('object');
