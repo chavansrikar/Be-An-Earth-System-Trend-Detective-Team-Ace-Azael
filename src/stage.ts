@@ -66,6 +66,14 @@ export class Stage {
   earthOn = false;
   /** Base auto-orbit speed in Earth mode (OrbitControls units); the agent can change it. */
   orbitSpeed = 0.35;
+  /**
+   * Held navigation input from the keyboard or the NAV pad, each -1..1: forward, sideways,
+   * turn (positive turns right) and zoom (positive closes in). Applied every frame the
+   * viewer has the camera.
+   */
+  readonly nav = { fwd: 0, side: 0, turn: 0, zoom: 0, fast: false };
+  /** Metres of ground correction still to ease into camera and target (see shiftGround). */
+  private groundLift = 0;
   /** A scripted camera move in Earth mode. `step` receives eased-free progress 0..1. */
   private flight: { t: number; dur: number; step: (k: number) => void; done?: () => void } | null = null;
   /** The point the current landing is aimed at; ground corrections move it. */
@@ -91,6 +99,9 @@ export class Stage {
     this.controls.maxDistance = 14;
     this.controls.maxPolarAngle = Math.PI * 0.52;
     this.renderer.domElement.addEventListener('wheel', () => { this.userZoomed = true; }, { passive: true });
+    // The slow showcase orbit stops the moment the viewer grabs the camera, so the view
+    // stays where they leave it instead of drifting away under their hand.
+    this.controls.addEventListener('start', () => { if (this.earthOn) this.controls.autoRotate = false; });
 
     this.pad = projectorPad();
     this.motes = dust();
@@ -114,6 +125,12 @@ export class Stage {
     if (this.model) { this.pivot.remove(this.model.root); this.model.dispose(); }
     this.model = m;
     if (m) this.pivot.add(m.root);
+    this.pivot.visible = !this.earthOn;
+  }
+
+  /** Hide or show the hologram without unloading it (Scan and Build start on an empty stage). */
+  showHologram(on: boolean) {
+    this.pivot.visible = on && !this.earthOn;
   }
 
   private running = true;
@@ -152,15 +169,31 @@ export class Stage {
     this.controls.autoRotate = on && !this.reducedMotion;
     this.controls.autoRotateSpeed = 0.35;
     this.controls.zoomSpeed = on ? 1.4 : 1;
+    // On the real Earth, right-drag slides along the ground (forward and back) rather than
+    // up into the sky, and the wheel flies toward whatever is under the cursor.
+    this.controls.screenSpacePanning = !on;
+    this.controls.zoomToCursor = on;
     this.floor = -Infinity;
     if (!on) this.setIsolate(0, 0);
-    if (!on) { this.earth.stop(); this.camera.position.set(4.4, 2.6, 5.6); this.controls.target.set(0, 0.95, 0); this.flight = null; this.landing = null; }
+    if (!on) {
+      this.earth.stop();
+      this.camera.position.set(4.4, 2.6, 5.6);
+      this.controls.target.set(0, 0.95, 0);
+      // Earth mode points the camera's up at north for top-down views. Leaving it there rolls
+      // every hologram, and a flight cut short leaves the mouse controls switched off.
+      this.camera.up.set(0, 1, 0);
+      this.flight = null;
+      this.landing = null;
+      this.groundLift = 0;
+      this.controls.enabled = true;
+    }
   }
 
   get flying() { return this.flight !== null; }
 
   /** Run a scripted move. A new move replaces the one in progress. */
   run(dur: number, step: (k: number) => void, done?: () => void) {
+    this.groundLift = 0;
     this.flight = { t: 0, dur: this.reducedMotion ? 0.001 : dur, step, done };
     this.controls.enabled = false;
   }
@@ -174,9 +207,13 @@ export class Stage {
   dive(target: THREE.Vector3, radius: number, fromDistance: number, dur = 6.5, done?: () => void, topDown = false) {
     this.landing = target;
     const end = this.approachDir;
-    const top = this.topDirHere(end);
+    // Top-down maps sit a hair south of straight up, so north stays up on screen once the
+    // camera's up axis goes back to the local vertical.
+    const top = this.topDirHere(topDown ? this.southDir : end);
     const l0 = Math.log(Math.max(fromDistance, radius)), l1 = Math.log(radius);
     const dir = new THREE.Vector3();
+    const up0 = this.camera.up.clone();
+    const up1 = this.localUp;
     this.run(dur, (k) => {
       // Linger on the globe, fall fast through the empty kilometres, settle over the rooftops.
       const e = 0.5 - 0.5 * Math.cos(Math.PI * Math.pow(k, 0.85));
@@ -187,7 +224,13 @@ export class Stage {
       dir.copy(top).lerp(end, tilt).normalize();
       this.camera.position.copy(target).addScaledVector(dir, dist);
       this.controls.target.copy(target);
-    }, done);
+      // Keep the horizon level: as the view tilts, the up axis moves from north to the local vertical.
+      if (!topDown) this.camera.up.copy(up0).lerp(up1, tilt).normalize();
+    }, () => {
+      // Orbit controls turn around the local vertical; any other up axis rolls the view as you drag.
+      this.camera.up.copy(up1);
+      done?.();
+    });
   }
 
   /**
@@ -204,6 +247,16 @@ export class Stage {
     const n = this.earth.northAxis;
     const u = this.earth.upAxis;
     return e.clone().multiplyScalar(0.3).addScaledVector(n, -0.86).addScaledVector(u, 0.42).normalize();
+  }
+
+  /** Local vertical: the camera's up axis whenever the view is not top-down. */
+  private get localUp(): THREE.Vector3 {
+    return this.earthOn ? this.earth.upAxis.clone() : new THREE.Vector3(0, 1, 0);
+  }
+
+  /** Due south in the live frame (+z is north in the hologram frame). */
+  private get southDir(): THREE.Vector3 {
+    return this.earthOn ? this.earth.northAxis.clone().negate() : new THREE.Vector3(0, 0, -1);
   }
 
   /** Straight up, nudged a hair toward `d` so a top-down view keeps a defined, north-up heading. */
@@ -256,11 +309,15 @@ export class Stage {
     const off = this.camera.position.clone().sub(target);
     const l0 = Math.log(Math.max(off.length(), 1)), l1 = Math.log(height);
     const dir0 = off.normalize(), up = this.topDirHere(this.approachDir), dir = new THREE.Vector3();
+    // Rising to top-down: north becomes the screen's up, as in the whole-Earth view that follows.
+    const up0 = this.camera.up.clone(), up1 = this.earthOn ? this.earth.northAxis.clone() : up0.clone();
     this.run(dur, (k) => {
       const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-      dir.copy(dir0).lerp(up, THREE.MathUtils.smoothstep(k, 0, 0.6)).normalize();
+      const s = THREE.MathUtils.smoothstep(k, 0, 0.6);
+      dir.copy(dir0).lerp(up, s).normalize();
       this.camera.position.copy(target).addScaledVector(dir, Math.exp(l0 + (l1 - l0) * e));
       this.controls.target.copy(target);
+      this.camera.up.copy(up0).lerp(up1, THREE.MathUtils.smoothstep(k, 0.35, 0.6)).normalize();
     }, done);
   }
 
@@ -268,13 +325,9 @@ export class Stage {
   shiftGround(dy: number) {
     if (this.landing) this.landing.y += dy;
     if (this.flight) return; // the move in progress reads the landing point every frame
-    const from = this.camera.position.clone(), fromT = this.controls.target.clone();
-    const up = new THREE.Vector3(0, dy, 0);
-    this.run(1.2, (k) => {
-      const e = 1 - Math.pow(1 - k, 3);
-      this.camera.position.copy(from).addScaledVector(up, e);
-      this.controls.target.copy(fromT).addScaledVector(up, e);
-    });
+    // Eased in over the next frames without taking the camera away: sharper tiles keep
+    // correcting the ground, and a scripted move here used to cut out the mouse mid-drag.
+    this.groundLift += dy;
   }
 
   /**
@@ -334,6 +387,49 @@ export class Stage {
    * camera (and fall back to the landmark's ground); every frame, hold the eye above that floor.
    * This runs during scripted moves too, since a dive can outrun the tiles.
    */
+  /** True while any navigation input is held. */
+  get navigating() { const n = this.nav; return !!(n.fwd || n.side || n.turn || n.zoom); }
+
+  /**
+   * Walk the camera with held keys or the NAV pad. On the real Earth, forward and sideways
+   * slide camera and target together across the ground, at a speed that scales with height,
+   * so a city block and a country both take a second or two. On a hologram the target stays
+   * on the model: forward closes in and sideways walks around it.
+   */
+  private applyNav(dt: number) {
+    if (!this.navigating) return;
+    const n = this.nav;
+    const boost = n.fast ? 3 : 1;
+    const up = this.camera.up;
+    const target = this.controls.target;
+    const off = this.camera.position.clone().sub(target);
+    const dist = off.length();
+    let zoom = n.zoom, turn = n.turn;
+    if (this.earthOn) {
+      this.controls.autoRotate = false;
+      if (n.fwd || n.side) {
+        // Heading is the view direction laid flat; looking straight down, it is screen-up.
+        const fwd = off.clone().negate().projectOnPlane(up);
+        if (fwd.lengthSq() < dist * dist * 1e-4) fwd.set(0, 1, 0).applyQuaternion(this.camera.quaternion).projectOnPlane(up);
+        fwd.normalize();
+        const right = new THREE.Vector3().crossVectors(fwd, up).normalize();
+        const step = Math.max(dist, 80) * 0.75 * boost * dt;
+        const move = fwd.multiplyScalar(n.fwd * step).addScaledVector(right, n.side * step);
+        target.add(move);
+      }
+    } else {
+      zoom += n.fwd;
+      turn += n.side;
+      this.userZoomed = true;
+    }
+    if (turn) off.applyAxisAngle(up, -THREE.MathUtils.clamp(turn, -1, 1) * 1.1 * boost * dt);
+    if (zoom) {
+      const k = Math.exp(-THREE.MathUtils.clamp(zoom, -1, 1) * 1.4 * boost * dt);
+      off.setLength(THREE.MathUtils.clamp(dist * k, this.controls.minDistance, this.controls.maxDistance));
+    }
+    this.camera.position.copy(target).add(off);
+  }
+
   private guardClearance(dt: number) {
     const p = this.camera.position;
     const g = this.earth.ground;
@@ -443,6 +539,15 @@ export class Stage {
       } else {
         // A hand swipe speeds up the orbit, then it settles back to a slow turn.
         this.controls.autoRotateSpeed = this.orbitSpeed + this.spin * 25;
+        if (this.controls.enabled) this.applyNav(dt);
+        if (this.groundLift) {
+          const step = Math.abs(this.groundLift) < 0.05 ? this.groundLift : this.groundLift * Math.min(1, dt * 3.5);
+          this.camera.position.y += step;
+          this.controls.target.y += step;
+          this.groundLift -= step;
+        }
+        // Zooming toward the cursor only makes sense near the ground, not from orbit.
+        this.controls.zoomToCursor = this.camera.position.distanceTo(this.controls.target) < 30000;
         this.controls.update();
         this.guardClearance(dt);
       }
@@ -456,6 +561,7 @@ export class Stage {
       const d = off.length();
       if (!this.userZoomed) off.setLength(d + (want - d) * Math.min(1, dt * 3));
       this.camera.position.copy(this.controls.target).add(off);
+      if (this.controls.enabled) this.applyNav(dt);
       this.controls.update();
     }
     this.lens.tick(t);

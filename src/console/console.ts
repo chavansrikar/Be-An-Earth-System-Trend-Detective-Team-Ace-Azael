@@ -74,13 +74,14 @@ export function initConsole() {
 // ---------------------------------------------------------------------------
 function buildHeader() {
   const bar = q('.bar')!;
-  // Number the station keys and give each a purpose tooltip.
+  // Number the station keys. Their purpose is read out to screen readers; no hover tooltip,
+  // because it landed on top of the station plate that already says the same thing.
   document.querySelectorAll<HTMLButtonElement>('.modes .mode').forEach((b) => {
     const st = STATIONS[b.dataset.mode || ''];
     if (!st) return;
     const n = h('span', 'mode-n', st.n);
     b.prepend(n);
-    b.dataset.tip = `STN ${st.n} · ${st.purpose}`;
+    b.setAttribute('aria-description', `Station ${st.n}: ${st.purpose}`);
   });
   const nav = q('.modes')!;
   nav.setAttribute('aria-label', 'Station select');
@@ -134,6 +135,9 @@ function paintStation(mode: string) {
   q('.cn-stn-text strong', plate)!.textContent = `STN ${st.n} · ${st.name.toUpperCase()}`;
   q('.cn-stn-text small', plate)!.textContent = st.purpose;
   root.dataset.station = mode;
+  // One dossier panel serves Library, Scan and Build: name the station it is on.
+  const dossier: Record<string, string> = { library: 'STN 04 · Library · machine dossier', scan: 'STN 05 · Scan · object dossier', build: 'STN 06 · Build · model dossier' };
+  if (dossier[mode]) document.getElementById('intro')?.setAttribute('data-plate', dossier[mode]);
   paintPlacard(mode);
   if (mode !== 'trends') toggleGev(false);
   paintCrumb();

@@ -869,6 +869,9 @@ html[data-look="apollo"] :is(.intro, .scan-panel, .build-panel, .place-panel, .g
   border-bottom: 1px solid #0E0F0E;
 }
 html[data-look="apollo"] .intro { position: fixed; }
+/* The machine name sat in a 125% wide face and ran out of its panel ("PERSEVERANCE"). */
+html[data-look="apollo"] .intro #model-title { font-stretch: 100%; font-size: clamp(24px, 2.3vw, 34px); line-height: 1; overflow-wrap: break-word; }
+html[data-look="apollo"] .intro #model-title.long { font-size: clamp(20px, 1.9vw, 28px); }
 html[data-look="apollo"] :is(.intro, .scan-panel, .build-panel, .place-panel, .globe-panel) .eyebrow { color: #FFB020; font-family: var(--mono); }
 html[data-look="apollo"] :is(.intro, .scan-panel, .build-panel, .place-panel, .globe-panel) :is(h1, h2) { font-family: var(--a-cond); font-stretch: 125%; font-weight: 800; letter-spacing: .04em; color: #F3EFE3; }
 html[data-look="apollo"] :is(.intro, .scan-panel, .build-panel, .place-panel, .globe-panel) p { color: #CFC9BA; }
@@ -938,4 +941,10 @@ html[data-console][data-station="trends"] .cn-deck { grid-template-columns: minm
   .gev-keys button { min-height: 26px; font-size: 9px; }
   .gev-out { min-height: 2.4em; font-size: 13px; }
   .gev-out li:not(:last-child) { display: none; }
+}
+
+/* 3D stations on laptop widths: a centred plate ran over the left control panel. Start it
+   just right of the panel instead (panels end at 404 px). */
+@media (min-width: 901px) and (max-width: 1420px) {
+  html[data-console]:not([data-station="trends"]) .cn-plate { left: 420px; right: auto; transform: none; width: min(560px, calc(100vw - 436px)); }
 }

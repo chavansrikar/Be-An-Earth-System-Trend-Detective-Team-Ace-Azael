@@ -213,3 +213,67 @@ html.v2.v2-intro body .modes { animation: v2-rise .5s both var(--v2-ease); }
 @media (prefers-reduced-motion: reduce) {
   html.v2 body *, html.v2 body *::before, html.v2 body *::after { animation: none !important; transition: none !important; }
 }
+
+/* Scan and Build start on an empty stage: no part labels from the previous model. */
+#labels.is-stale { display: none; }
+
+/* ---------- NAV pad: hold to move the camera (keys W A S D, ← →, + −) ---------- */
+.nav-pad {
+  position: fixed; z-index: 30; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  display: grid; gap: 6px; padding: 26px 8px 8px; border-radius: 4px; user-select: none; -webkit-user-select: none; touch-action: none;
+  background: linear-gradient(#2C2F2D, #212322); border: 1px solid #0B0C0B;
+  box-shadow: 0 1px 0 rgba(255,255,255,.07) inset, 0 8px 20px rgba(0,0,0,.5);
+}
+.nav-plate {
+  position: absolute; left: 0; right: 0; top: 0; padding: 6px 10px 6px 22px; border-bottom: 1px solid #0E0F0E; border-radius: 3px 3px 0 0;
+  font: 700 10px/1 'Archivo Variable', sans-serif; font-stretch: 80%; letter-spacing: .2em; color: #EDE8DA;
+  background: radial-gradient(circle at 10px 50%, #DCD7CB 0 2.5px, #6E6A5F 2.5px 3.5px, transparent 4px), linear-gradient(#3A3D3B, #2A2C2B);
+}
+.nav-pad.is-moving .nav-plate { background: radial-gradient(circle at 10px 50%, #FFB020 0 2.5px, #6E4A10 2.5px 3.5px, transparent 4px), linear-gradient(#3A3D3B, #2A2C2B); }
+.nav-keys { display: grid; grid-template-columns: repeat(4, 34px); gap: 5px; }
+.nav-key {
+  position: relative; width: 34px; height: 32px; padding: 0; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid #0A0B0A; border-radius: 3px; color: #1B1D1C;
+  background: linear-gradient(#F1ECDD, #D6CFBD); box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 2px 0 #0F100F;
+  transition: transform .06s ease-out, box-shadow .06s ease-out, background-color .12s;
+}
+.nav-key:nth-child(4n) { margin-left: 4px; } /* zoom keys stand apart from the movement keys */
+.nav-key svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.nav-key kbd { all: unset; position: absolute; right: 3px; top: 2px; font: 600 7.5px/1 'Monaspace Krypton', monospace; color: #8A8478; pointer-events: none; }
+.nav-key svg { margin-top: 3px; }
+.nav-key:hover { background: linear-gradient(#F7F3E7, #DED8C8); }
+.nav-key.is-down, .nav-key:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 0 0 #0F100F; background: linear-gradient(#FFD27A, #FFB020); }
+.nav-key:focus-visible { outline: 2px solid #FFB020; outline-offset: 2px; }
+.nav-hint { font: 400 9.5px/1 'Monaspace Krypton', monospace; letter-spacing: .04em; color: #8F8B7F; text-align: center; }
+body.mode-trends .nav-pad, body.gev .nav-pad, html:not([data-look="apollo"]) .nav-pad { display: none; }
+/* The NASA Blue Marble globes are a separate renderer with their own drag and zoom: no pad. */
+body.mode-places.earth-fallback .nav-pad, body.mode-globe.globe-fallback .nav-pad { display: none; }
+/* Objects on the hologram stations turn with drag and scroll; the keys still work there, but a
+   pad would only crowd the dossier. The pad is for flying over the real Earth. */
+body:is(.mode-library, .mode-scan, .mode-build) .nav-pad { display: none; }
+@media (max-width: 760px) { .nav-pad { display: none; } } /* phones: pinch and drag already move the camera */
+@media (prefers-reduced-motion: reduce) { .nav-key { transition: none; } }
+
+/* Build: the panel hugs its content and stops above the ask dock instead of running under it. */
+body.mode-build .build-panel { bottom: auto; max-height: calc(100dvh - 96px - 238px - env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 760px) { body.mode-build .build-panel { max-height: 50vh; } }
+
+/* Short laptop screens: tighten the dossier and the log so neither runs into the dock. */
+@media (max-height: 720px) and (min-width: 761px) {
+  .intro { gap: 9px; }
+  .intro .hints { gap: 3px; padding-top: 8px; margin-top: 2px; font-size: 13px; }
+  body .log { max-height: 46px; }
+}
+
+/* The part dossier opens below the station plate, not on top of it. */
+html[data-console] .card { top: 146px; }
+@media (max-width: 760px) { html[data-console] .card { top: auto; } }
+
+/* Build: the finished-build card (top right) and the model dossier (bottom right) share the
+   right column. The dossier sits just above the credit, the card carries the name while it is
+   open (no second CHARMINAR), and the card is capped so the two never meet at laptop heights. */
+@media (min-width: 761px) {
+  body.mode-build #intro { bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+  body.mode-build:has(#card:not([hidden])) #model-title { display: none; }
+  body.mode-build .card { max-height: calc(100dvh - 146px - 100px - 176px); overflow-y: auto; scrollbar-width: thin; }
+}

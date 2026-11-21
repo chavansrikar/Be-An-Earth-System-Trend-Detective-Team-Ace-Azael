@@ -71,6 +71,42 @@ Small change in shared code: `fmt()` now prints small values as plain decimals (
 
 The statistics engine (`api/_stats.ts`) is **unchanged**. v2 only reads the same NASA POWER series that `/api/trends` already returns. There are no new serverless functions (still 11 of Vercel Hobby's 12) and no new API keys.
 
+## 0b. 3D stations: navigation and orientation fixes (QA pass, 21 Nov)
+Tested station by station in Playwright at 1470×860 and 1190×650 against the live APIs, reading the camera state on every step.
+
+- **Level horizon everywhere.**
+  - The camera's up axis was left pointing at north after the top-down and whole-Earth views. That rolled the view when orbiting a landmark in Places and tilted the rover in Library, Scan and Build.
+  - The dive now blends the up axis back to the local vertical as it tilts in. Leaving the Earth resets it.
+  - Measured roll after landing and after every input is now 0°.
+  - Country-scale views stay north-up: north measures at 90° on screen.
+- **Mouse control always comes back.** A flight cut short by switching stations used to leave the mouse controls switched off (Library could not be turned). Leaving the Earth now hands them back.
+- **No more mid-drag cut-outs on the Earth.** As sharper tiles stream in, the ground height is corrected. Each correction used to run as a 1.2 s scripted move that switched the controls off. It now eases in without taking the camera away.
+- **Navigation** (`src/nav.ts`, new):
+  - **Keys:** W/S or ↑/↓ move forward and back, A/D slide sideways, Q/← and → turn, + and − zoom, Shift goes 3× faster.
+  - **NAV pad:** a hold-to-move pad on Places and Globe.
+  - **Speed:** on the real Earth the move scales with height, so a city block and a country both take a second or two.
+  - **On the whole planet:** the keys turn the globe.
+  - **Hologram stations:** forward closes in and sideways walks round the model. These stations have no pad.
+  - **Typing is safe:** keys typed into inputs, the manual or the briefing never move the camera.
+- **Mouse on the Earth:**
+  - Right-drag slides along the ground.
+  - The wheel zooms toward the cursor.
+  - The slow showcase orbit stops as soon as you grab the view.
+- **Scan and Build start on an empty stage.** The Library rover and its part labels no longer sit behind them.
+- **Layout:**
+  - **Station-key tooltips:** removed. They covered the station plate that says the same thing; the purpose is kept for screen readers.
+  - **Station plate:** at laptop widths it starts right of the left panel instead of running over it.
+  - **Part dossier:** opens below the plate.
+  - **Build panel:** hugs its content and stops above the ask dock.
+  - **Short screens:** the dossier and log tighten so nothing overlaps at 650 px tall.
+  - **Long machine names:** they fit the dossier (PERSEVERANCE ROVER).
+  - **Dossier label:** it names its station (Library, Scan or Build).
+- **Dossier hints:** they describe the mouse and keys. The hand-gesture hints show only when hands are on.
+- **Globe search:**
+  - Typing a country ("India") flies to the country instead of the India Gate landmark.
+  - The search box lets go of the keyboard after a fly, so W A S D work on landing.
+- **Station text:** the Globe station description no longer says GIBS only. It is photoreal 3D or NASA imagery.
+
 ## 1. New design: "Field Instrument"
 A neo-brutalist frame with skeuomorphic details, still in the ATLAS Riso palette (blue `#2B44B8`, cream `#F4EFE4`, pink `#FF4FA3`):
 - Hard ink borders and offset shadows on every control. Keys press down when clicked.
@@ -137,4 +173,7 @@ Every view has hover tooltips, arrow-key tab navigation and a plain-language cap
 | `src/looks.css` (new) | The style-study looks |
 | `offline/` (shim + stub), `vite.offline.config.ts` (new) | Offline preview build only (recorded NASA POWER data); not used by the live site |
 | `src/trends-ui.ts` | Broadcasts `atlas:state` events and exports `trendSnapshot()`; the chart reads its ink colour from the canvas |
+| `src/nav.ts` (new) | Keyboard and NAV pad camera navigation |
+| `src/stage.ts` | Up-axis blending in dive and rise, control hand-back, eased ground correction, `nav` input, map-style pan and zoom-to-cursor on the Earth |
+| `src/main.ts`, `index.html` | Empty stage for Scan and Build, nav wiring, globe-orbit keys, country-over-landmark search, mouse hints |
 | `V2_CHANGES.md` (new) | This file |

@@ -22,6 +22,7 @@ import { loadSplat, disposeSplat } from './splat';
 import { SignalLayers, ago, type Signal, type LayerId } from './signals';
 import { initTrends, setTrendMode, trendContext, setPlaceGlobeMode, setPlaceGlobePick, showPlaceGlobe, resetPlaceGlobe, openTrendAt, openCompare, setGlobeTabMode, setGlobeTabPick, showGlobeTab, globeTabBase, globeTabSpin, globeTabNight, globeTabReset, showGlobeTabMarker, flyGlobeTab } from './trends-ui';
 import { fmt, decimalsFor, type TrendResult } from './trends';
+import { initNav } from './nav';
 
 applyCss(theme);
 
@@ -194,6 +195,9 @@ handsBtn.addEventListener('click', async () => {
   handsBtn.classList.toggle('on', on);
   handsBtn.setAttribute('aria-pressed', String(on));
   document.getElementById('hands-label')!.textContent = on ? 'Hands on' : 'Use hands';
+  // The dossier explains whichever controls are live: hands when the camera is on, else mouse and keys.
+  $('hints').hidden = on;
+  $('hints-hands').hidden = !on;
 });
 export { gestures };
 
@@ -271,6 +275,7 @@ mic.addEventListener('click', () => {
 // ---------- modes ----------
 type Mode = 'trends' | 'library' | 'scan' | 'places' | 'globe' | 'build';
 let mode: Mode = 'trends';
+let nav: ReturnType<typeof initNav> | null = null;
 let globeTabFallbackActive = false;
 let globeTabRequest = 0;
 let globePick: { name: string; lat: number; lon: number } | null = null;
@@ -286,6 +291,7 @@ document.querySelectorAll<HTMLButtonElement>('.mode').forEach((b) => b.addEventL
 function setMode(m: Mode) {
   const prev = mode;
   mode = m;
+  if (m !== prev) nav?.release();
   document.body.className = `mode-${m}`;
   document.querySelectorAll<HTMLButtonElement>('.mode').forEach((b) => {
     const on = b.dataset.mode === m;
@@ -318,6 +324,10 @@ function setMode(m: Mode) {
   }
   if (m === 'places') enterPlaces();
   else if (m === 'globe') void enterGlobeTab();
+  // Scan and Build start on an empty stage: the library's rover behind them read as a bug.
+  const stale = (m === 'scan' && !scanned) || (m === 'build' && !built);
+  stage.showHologram(!stale);
+  ($('labels') as HTMLElement).classList.toggle('is-stale', stale);
   const u = new URL(location.href);
   if (m === 'globe') u.searchParams.set('mode', 'globe');
   else if (u.searchParams.get('mode') === 'globe') u.searchParams.delete('mode');
@@ -374,6 +384,7 @@ async function runScan(image: string) {
     }
     const m = await ScanModel.build(image, scan, step);
     stage.setModel(m);
+    $('labels').classList.remove('is-stale');
     stage.frame('scan');
     stage.userZoomed = false;
     scanned = true;
@@ -432,8 +443,11 @@ let sunLine: THREE.Line | null = null;
 
 (document.getElementById('place-form') as HTMLFormElement).addEventListener('submit', (ev) => {
   ev.preventDefault();
-  const q = (document.getElementById('place-input') as HTMLInputElement).value.trim();
-  if (q) searchPlace(q);
+  const input = document.getElementById('place-input') as HTMLInputElement;
+  const q = input.value.trim();
+  if (!q) return;
+  input.blur(); // keys go back to the camera
+  searchPlace(q);
 });
 
 document.getElementById('place-compare')?.addEventListener('click', () => {
@@ -808,8 +822,27 @@ async function globeFlyByName(place: string, lat?: number, lon?: number) {
   if (mode !== 'globe') return;
   const q = place.toLowerCase();
   const head = q.split(',')[0].trim();
-  const preset = LANDMARKS.find((l) => q.includes(l.name.toLowerCase()) || (head.length >= 5 && l.name.toLowerCase().includes(head)));
+  const exact = LANDMARKS.find((l) => q.includes(l.name.toLowerCase()));
+  const partial = exact ? undefined : LANDMARKS.find((l) => head.length >= 5 && l.name.toLowerCase().includes(head));
+  let preset = exact ?? partial;
   const point = Number.isFinite(lat) && Number.isFinite(lon) ? { lat: Number(lat), lon: Number(lon) } : parseLatLon(place);
+  // A partial name can be a whole region ("India" is not India Gate): a country or state
+  // from the geocoder wins over a landmark that merely contains the word.
+  let region: { g: { name: string; lat: number; lon: number }; fit: { view: number; lift: number } } | null = null;
+  if (!point && partial) {
+    setGlobeStatus(`Finding ${place}…`);
+    try {
+      const r = await fetch('/api/geocode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: place }) });
+      const g = await r.json();
+      if (r.ok && !g.error) { const fit = viewForGeo(g); const known = Number(g.rank) > 0 || /country|state|province|region|county/.test(String(g.addresstype)); if (known && fit.view >= 100000) { region = { g, fit }; preset = undefined; } }
+    } catch { /* fall back to the landmark */ }
+    if (mode !== 'globe') return;
+  }
+  if (region) {
+    const parts = String(region.g.name).split(',');
+    await globeGo({ id: `globe-${Date.now()}`, name: parts[0].trim() || place, city: parts.slice(1).join(',').trim() || place, lat: Number(region.g.lat), lon: Number(region.g.lon), view: region.fit.view, lift: region.fit.lift });
+    return;
+  }
   if (!point && preset) {
     // A curated landmark keeps its own coordinates and depth (Eiffel 720 m, Liberty 330 m).
     await globeGo({
@@ -1281,6 +1314,8 @@ document.querySelectorAll<HTMLButtonElement>('[data-globe-view]').forEach((b) =>
   const q = input.value.trim();
   if (!q) return;
   input.value = '';
+  // Hand the keys back to the camera so W A S D work as soon as the flight lands.
+  input.blur();
   showGlobeAnswer('');
   void globeFlyByName(q);
 });
@@ -1801,6 +1836,7 @@ function showBuilt() {
   const m = toHologram(built.parts);
   built.model = m;
   stage.setModel(m);
+  $('labels').classList.remove('is-stale');
   stage.frame('object');
   state.entry = null;
   labels.rebuild(m);
@@ -2095,6 +2131,15 @@ window.addEventListener('keydown', (e) => {
     } else if (globe && !stage.flying) {
       // Eastward rotation: the ground moves left as the planet turns under the camera.
       if (globe.spin && !globeDrag) globe.lon = ((globe.lon - dt * 2.2 + 540) % 360) - 180;
+      // Keys and the NAV pad fly over the planet: forward heads north, sideways and turn head east.
+      const n = stage.nav;
+      if (stage.navigating) {
+        const k = 38 * (globe.dist / ORBIT) * (n.fast ? 3 : 1) * dt;
+        globe.lat = THREE.MathUtils.clamp(globe.lat + n.fwd * k, -75, 75);
+        globe.lon = ((globe.lon + (n.side + n.turn) * k + 540) % 360) - 180;
+        if (n.zoom) globe.dist = THREE.MathUtils.clamp(globe.dist * Math.exp(-n.zoom * 1.4 * dt), 3.2e6, 3.4e7);
+        globe.spin = false;
+      }
       stage.controls.autoRotate = false;
       stage.controls.enabled = false;
       stage.earth.setOrigin(globe.lat, globe.lon);
@@ -2129,6 +2174,8 @@ if (new URLSearchParams(location.search).has('debug')) (window as unknown as Rec
 // The NASA trend screen is the front door. The hologram modes stay one tap away.
 initTrends();
 initV2();
+// Keys and the NAV pad move the camera on every 3D station; the Trends screen keeps its own keys.
+nav = initNav(stage, () => mode !== 'trends');
 // The ask boxes only appear once we know a keyed model is live.
 void refreshGlobeAgent();
 
